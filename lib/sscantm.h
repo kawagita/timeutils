@@ -17,12 +17,12 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-/* The property of time parsed from a string into the value of integer  */
+/* The property of time parsed from a string to the number of integer  */
 
 struct tmint_prop
 {
-  /* If zero, ignore leading spaces and parse '-' or '+' as a sign,
-     otherwise, parse only digits as its positive or negative value */
+  /* If zero, parse '-' or '+' as a sign, otherwise, parse only digits
+     as the positive or negative value */
   int sign;
   int minval;
   int maxval;
@@ -30,19 +30,28 @@ struct tmint_prop
      integer and skip digits over this value, and if the integer part is
      negative, decrement it and subtract the fractional part from 1.0 */
   int frac_digits;
-  int delim;
+  int delim;  /* Must be '\0' if not followed by the next number */
 };
 
-/* Parse each part of the specified string as the value of integer into
-   *TM_VALUES. Continue its parsing until the string is separated by '\0'
-   or DELIM in struct tmint_prop, or Stop by the value which is overflow
-   or outside the range of MINVAL to MAXVAL. Return the number of set
-   values, or -1 if zero or one character except for digits is found.  */
+/* Parse the specified string as the integer number and set its value
+   into *TM_VALUES, storing the pointer to '\0' or a failed character
+   into the *ENDPTR. Return the nubmer of set values, or -1 if a parsed
+   value is overflow.  */
 
-int sscantmint (int *tm_values,
-                const struct tmint_prop *tm_props, const char *str);
+int sscantmint (const char *str, int *tm_value, char **endptr);
 
-/* The property time parsed from a string into the value of intmax_t,
+/* Parse a leading part in the specified string as the integer number
+   separated by DELIM in struct tmint_prop and set its value into
+   **TM_VALP, storing the pointer to '\0' or a failed character into
+   the *ENDPTR. Continue to parse the string for numbers specified by
+   *TM_PROPS until parsing is terminated by '\0'. Return the nubmer of
+   set values, or -1 if a parsed value is outside the range of MINVAL
+   to MAXVAL.  */
+
+int sscantmintp (const char *str, const struct tmint_prop *tm_props,
+                 int **tm_valp, char **endptr);
+
+/* The property time parsed from a string to the number of intmax_t,
    including members same as struct tmint_prop  */
 
 struct tmimax_prop
@@ -54,11 +63,20 @@ struct tmimax_prop
   int delim;
 };
 
-/* Parse each part of the specified string as the value of intmax_t into
-   *TM_VALUES. Continue its parsing until the string is separated by '\0'
-   or DELIM in struct tmint_prop, or Stop by the value which is overflow
-   or outside the range of MINVAL to MAXVAL. Return the number of set
-   values, or -1 if zero or one character except for digits is found.  */
+/* Parse the specified string as the intmax_t number and set its value
+   into *TM_VALUES, storing the pointer to '\0' or a failed character
+   into the *ENDPTR. Return the nubmer of set values, or -1 if a parsed
+   value is overflow.  */
 
-int sscantmimax (intmax_t *tm_values,
-                 const struct tmimax_prop *tm_props, const char *str);
+int sscantmimax (const char *str, intmax_t *tm_value, char **endptr);
+
+/* Parse a leading part in the specified string as the intmax_t number
+   separated by DELIM in struct tmint_prop and set its value into
+   *TM_VALP, storing the pointer to '\0' or a failed character into
+   the *ENDPTR. Continue to parse the string for numbers specified by
+   *TM_PROPS until parsing is terminated by '\0'. Return the nubmer of
+   set values, or -1 if a parsed value is outside the range of MINVAL
+   to MAXVAL.  */
+
+int sscantmimaxp (const char *str, const struct tmimax_prop *tm_props,
+                  intmax_t **tm_valp, char **endptr);

@@ -15,9 +15,9 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 
 #include "adjusttm.h"
@@ -154,11 +154,7 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
   /* Output seconds since Unix epoch. */
   if (tm_ptrs->tm_elapse)
     {
-#if defined USE_TM_CYGWIN || _WIN32_WINNT >= 0x600
-      printf ("%jd", *(tm_ptrs->tm_elapse));
-#else
-      printf ("%I64d", *(tm_ptrs->tm_elapse));
-#endif
+      printf ("%" PRIdMAX, *(tm_ptrs->tm_elapse));
       tmout_size++;
       elapse_leading = true;
       sec_output = true;
@@ -195,7 +191,7 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
           elapse_leading = false;
         }
       else if (tmout_size > 0)
-        fputs (" ", stdout);
+        fputc (' ', stdout);
 
       /* Calculate the era symbol or week number of the specified date firstly
          because year changes may vary. */
@@ -245,12 +241,30 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
         }
       else if (tm_ptrs->tm_mon)  /* Month and day */
         {
-          printf ("%c%02d", date_delim, *(tm_ptrs->tm_mon) + 1);
+          int month = *(tm_ptrs->tm_mon) + 1;
+          int month_delim = date_delim;
+          if (month < 0)
+            {
+              /* Change the delimiter to '+' if negative value. */
+              month = - month;
+              month_delim = '+';
+            }
+
+          printf ("%c%02d", month_delim, month);
           tmout_size++;
 
           if (tm_ptrs->tm_mday)
             {
-              printf ("%c%02d", date_delim, *(tm_ptrs->tm_mday));
+              int day = *(tm_ptrs->tm_mday);
+              int day_delim = date_delim;
+              if (day < 0)
+                {
+                  /* Change the delimiter to '+' if negative value. */
+                  day = day > INT_MIN ? - day : INT_MAX;
+                  day_delim = '+';
+                }
+
+              printf ("%c%02d", day_delim, day);
               tmout_size++;
             }
         }
@@ -265,9 +279,9 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
           elapse_leading = false;
         }
       else if (tm_ptrs->tm_year && iso8601)
-        fputs ("T", stdout);
+        fputc ('T', stdout);
       else if (tmout_size > 0)
-        fputs (" ", stdout);
+        fputc (' ', stdout);
       printf ("%02d", *(tm_ptrs->tm_hour));
       tmout_size++;
       hour_output = true;
@@ -300,7 +314,7 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
       long int abs_gmtoff_min = gmtoff_min < 0 ? - gmtoff_min : gmtoff_min;
 
       if (!iso8601)
-        fputs (" ", stdout);
+        fputc (' ', stdout);
       printf ("%c%02ld%02d", (gmtoff_min < 0 ? '-' : '+'),
               abs_gmtoff_min / 60, (int)(abs_gmtoff_min % 60));
       tmout_size++;
@@ -314,7 +328,7 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
 
   /* Output the trailing newline if "-n" is not specified by the command. */
   if (!tm_fmt->no_newline && tmout_size > 0)
-    fputs ("\n", stdout);
+    fputc ('\n', stdout);
 
   return tmout_size;
 }

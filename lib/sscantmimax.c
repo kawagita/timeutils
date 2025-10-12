@@ -1,4 +1,4 @@
-/* Convert a string to the value of intmax_t for date and time
+/* Convert a string into values of intmax_t for date and time
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -24,145 +24,169 @@
 
 #define ISDIGIT(c)  (c >= '0' && c <= '9')
 
-/* Parse each part of the specified string as the value of intmax_t into
-   *TM_VALUES. Continue its parsing until the string is separated by '\0'
-   or DELIM in struct tmint_prop, or Stop by the value which is overflow
-   or outside the range of MINVAL to MAXVAL. Return the number of set
-   values, or -1 if zero or one character except for digits is found.  */
+/* Parse the specified string as the intmax_t number and set its value
+   into *TM_VALUES, storing the pointer to '\0' or a failed character
+   into the *ENDPTR. Return the nubmer of set values, or -1 if a parsed
+   value is overflow.  */
 
 int
-sscantmimax (intmax_t *tm_values,
-             const struct tmimax_prop *tm_props, const char *str)
+sscantmimax (const char *str, intmax_t *tm_value, char **endptr)
 {
-  if (*str != '\0')
+  const struct tmimax_prop
+    tmimax_spec_prop = { 0, INTMAX_MIN, INTMAX_MAX, 0, '\0' };
+
+  return sscantmimaxp (str, &tmimax_spec_prop, &tm_value, endptr);
+}
+
+/* Parse a leading part in the specified string as the intmax_t number
+   separated by DELIM in struct tmint_prop and set its value into
+   **TM_VALP, storing the pointer to '\0' or a failed character into
+   the *ENDPTR. Continue to parse the string for numbers specified by
+   *TM_PROPS until parsing is terminated by '\0'. Return the nubmer of
+   set values, or -1 if a parsed value is outside the range of MINVAL
+   to MAXVAL.  */
+
+int
+sscantmimaxp (const char *str, const struct tmimax_prop *tm_props,
+             intmax_t **tm_valp, char **endptr)
+{
+  int set_num = 0;
+  int sign;
+  const char *p;
+
+  *endptr = (char *)str;
+
+  do
     {
-      int set_num = 0;
-      int sign;
-      const char *p;
+      const struct tmimax_prop *tm_prop = &tm_props[set_num];
+      int frac_digits = tm_prop->frac_digits;
+      intmax_t value;
+      bool overflow = false;
 
-      do
+      p = str;
+
+      /* Use the sign same as the previous integer part if fractional. */
+      if (set_num == 0 || frac_digits <= 0)
+        sign = tm_prop->sign;
+
+      /* Parse '-' or '+' followed by a number as a sign if SIGN is 0,
+         otherwise, parse only digits. */
+      if (sign == 0)
         {
-          const struct tmimax_prop *tm_prop = &tm_props[set_num];
-          int frac_digits = tm_prop->frac_digits;
-          intmax_t value;
-          bool overflow = false;
+          while (isspace (*p))
+            p++;
 
-          p = str;
-
-          /* Continue to use the sign of integer part if fractional. */
-          if (set_num == 0 || frac_digits <= 0)
-            sign = tm_prop->sign;
-
-          /* Ignore leading spaces and parse '-' or '+' followed by a number
-             as a sign if SIGN is 0, otherwise, parse only digits. */
-          if (sign == 0)
+          if (*p == '-')
             {
-              while (isspace (*p))
-                p++;
-
-              if (*p == '-')
-                {
-                  sign = -1;
-                  p++;
-                }
-              else if (*p == '+')
-                {
-                  sign = 1;
-                  p++;
-                }
+              sign = -1;
+              p++;
             }
-
-          if (! ISDIGIT (*p))
-            return -1;
-
-          value = sign < 0 && frac_digits <= 0 ? '0' - *p : *p - '0';
-          p++;
-
-          if (frac_digits > 0)
+          else if (*p == '+')
             {
-              bool digit_parsed = true;
-              intmax_t precision = 10;
+              sign = 1;
+              p++;
+            }
+        }
 
-              /* Accumulate the value of fractional part to the precision. */
-              while (--frac_digits > 0)
-                {
-                  if ((sign < 0
-                       && IMAX_MULTIPLY_WRAPV (precision, 10, &precision))
-                      || IMAX_MULTIPLY_WRAPV (value, 10, &value))
-                    break;
-                  else if (digit_parsed)
-                    {
-                      if (ISDIGIT (*p))
-                        {
-                          if (IMAX_ADD_WRAPV (value, *p - '0', &value))
-                            break;
-                          p++;
-                        }
-                      else
-                        digit_parsed = false;
-                    }
-                }
+      while (isspace (*p))
+        p++;
 
-              if (sign < 0)
+      if (! ISDIGIT (*p))
+        return set_num;
+
+      value = sign < 0 && frac_digits <= 0 ? '0' - *p : *p - '0';
+      p++;
+
+      if (frac_digits > 0)
+        {
+          bool digit_parsed = true;
+          intmax_t precision = 10;
+
+          /* Accumulate the value of fractional part to the precision. */
+          while (--frac_digits > 0)
+            {
+              if ((sign < 0
+                   && IMAX_MULTIPLY_WRAPV (precision, 10, &precision))
+                  || IMAX_MULTIPLY_WRAPV (value, 10, &value))
+                break;
+              else if (digit_parsed)
                 {
-                  /* Skip excess digits, truncating toward -Infinity. */
-                  while (ISDIGIT (*p))
+                  if (ISDIGIT (*p))
                     {
-                      if (*p != '0')
-                        {
-                          /* Ignore the overflow by excess digits. */
-                          IMAX_ADD_WRAPV (value, 1, &value);
-                          break;
-                        }
+                      if (IMAX_ADD_WRAPV (value, *p - '0', &value))
+                        break;
                       p++;
                     }
-
-                  /* Decrement the value of integer part and change the sign
-                     of fractional part by the subtraction from 1.0. */
-                  if (set_num > 0
-                      && (IMAX_SUBTRACT_WRAPV (precision, value, &value)
-                          || IMAX_SUBTRACT_WRAPV (tm_values[set_num - 1],
-                               1, &(tm_values[set_num - 1]))))
-                    overflow = true;
+                  else
+                    digit_parsed = false;
                 }
             }
-          else  /* frac_digits <= 0 */
+
+          if (sign < 0)
             {
-              /* Convert digits in the head to the intmax_t value. */
+              /* Skip excess digits, truncating toward -Infinity. */
               while (ISDIGIT (*p))
                 {
-                  if (IMAX_MULTIPLY_WRAPV (value, 10, &value)
-                      || IMAX_ADD_WRAPV (value,
-                           sign < 0 ? '0' - *p : *p - '0', &value))
+                  if (*p != '0')
                     {
-                      overflow = true;
+                      /* Ignore the overflow by excess digits. */
+                      IMAX_ADD_WRAPV (value, 1, &value);
                       break;
                     }
                   p++;
                 }
+
+              /* Decrement the value of integer part and change the sign
+                 of fractional part by the subtraction from 1.0. */
+              if (set_num > 0
+                  && (IMAX_SUBTRACT_WRAPV (precision, value, &value)
+                      || IMAX_SUBTRACT_WRAPV (
+                           *tm_valp[set_num - 1], 1, tm_valp[set_num - 1])))
+                overflow = true;
             }
-
-          /* Skip the rest of digits if overflow or over the precision. */
-          while (ISDIGIT (*p))
-            p++;
-
-          /* If the string contains no or one character except for digits
-             and a delimiter, return -1, otherwise if the value is overflow
-             or outside the range, return the number to the previous part. */
-          if (*p != tm_prop->delim && *p != '\0')
-            return -1;
-          else if (overflow || value < tm_prop->minval
-                   || value > tm_prop->maxval)
-            return set_num;
-
-          tm_values[set_num++] = value;
-          tm_prop++;
-          str = p + 1;
         }
-      while (*p != '\0');
+      else  /* frac_digits <= 0 */
+        {
+          /* Convert leading digits in the string into an intmax_t value. */
+          while (ISDIGIT (*p))
+            {
+              if (IMAX_MULTIPLY_WRAPV (value, 10, &value)
+                  || IMAX_ADD_WRAPV (
+                       value, sign < 0 ? '0' - *p : *p - '0', &value))
+                {
+                  overflow = true;
+                  break;
+                }
+              p++;
+            }
+        }
 
-      return set_num;
+      /* Skip the rest of digits if overflow or over the precision. */
+      while (ISDIGIT (*p))
+        p++;
+
+      while (isspace (*p))
+        p++;
+
+      /* If the current part contains a character except for digits and
+         a delimiter, return the number to the previous, or if a value is
+         overflow or outside the range of MINVAL to MAXVAL, return -1. */
+      if (*p != tm_prop->delim && *p != '\0')
+        {
+          *endptr = (char *)p;
+          return set_num;
+        }
+      else if (overflow
+               || value < tm_prop->minval || value > tm_prop->maxval)
+        return -1;
+
+      *tm_valp[set_num++] = value;
+      *endptr = (char *)p;
+
+      /* Continue to parse the following string if DELIM is not '\0'. */
+      str = p + 1;
     }
+  while (*p != '\0');
 
-  return -1;
+  return set_num;
 }

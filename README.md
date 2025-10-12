@@ -3,7 +3,7 @@ timeutils
 
 GNU touch コマンドを MinGW でビルドして Windows で動くようにする予定です。まだ開発途中ですが、少しずつソースを公開していきます。これらをビルドするには Windows 上に Cygwin 1.7.35 以降と gcc、mingw64-i686 等の開発用パッケージが必要になります。
 
-2025-W38 現在、関数のテスト用に作成した adjustday、gettime、localtime、mktime コマンドが使えます。localtime と mktime は同名の POSIX 関数を自作しました。関数内では `#define` で Cygwin と MSVCRT（msvcrt.dll）の関数をラップした部分を分けてあります。それぞれ、`make cygwin`、`make msvcrt` で cygwin、msvcrt ディレクトリ配下にコマンドが作成され、同じ引数を使って動作の違いを確かめられます。
+2025-W42 現在、関数のテスト用に作成した adjustday、gettime、leapdays、localtime、mktime コマンドが使えます。localtime と mktime は同名の POSIX 関数を自作しました。関数内では `#define` で Cygwin と MSVCRT（msvcrt.dll）の関数をラップした部分を分けてあります。それぞれ、`make cygwin`、`make msvcrt` で cygwin、msvcrt ディレクトリ配下にコマンドが作成され、同じ引数を使って動作の違いを確かめられます。
 
 #### adjustday
 
@@ -12,6 +12,10 @@ GNU touch コマンドを MinGW でビルドして Windows で動くようにす
 #### gettime
 
 現在の時刻を 1970-01-01 00:00 UTC からの秒数で表示します。`-N` オプションを指定すると、100 ナノ秒単位の小数部分を表示します。MSVCRT にはこのコマンドがありません。
+
+#### leapdays
+
+コマンドの引数に２つの年（負の値も可能）を指定すると、その期間に含まれるうるう日の数を表示します。Cygwin と MSVCRT にはこのコマンドがありません。
 
 #### localtime
 
@@ -22,6 +26,8 @@ GNU touch コマンドを MinGW でビルドして Windows で動くようにす
 [mktime コマンド](./mktime.md) を参照。
 
 日付や時刻を表示するコマンドでは曜日名、週番号、年内日数、タイムゾーン情報を表示したり、元号、ISO 8601 の形式で表示したりすることができます。詳しくは `--help` を付けてコマンドを実行してください。
+
+コマンドの最初の引数に負の値を指定する場合、引数の前に `--` を指定する必要があります。
 
 ## ライセンス
 

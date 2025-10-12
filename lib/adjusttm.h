@@ -29,7 +29,7 @@
 #define DAYS_IN_YEAR     365
 #define DAYS_IN_LEAPYEAR 366
 
-/* The number of days in 4, 100 (not divided by 400), or 400 years,
+/* The number of days in 4, 100 (not divisible by 400), or 400 years,
    including 1, 24, or 97 leap days  */
 
 #define DAYS_IN_4YEARS   1461
@@ -49,12 +49,12 @@
 /* Return the number of days for the specified months since January in
    a year if its value is from 0 to 12, otherwise, -1.  */
 
-int yeardays(bool has_noleapday, int months);
+int yeardays (bool has_noleapday, int months);
 
-/* Calculate the number of leap days between the specified years. If TO_YEAR
-   is greater than, equal to, or less than FROM_YEAR, return the positive
-   zero, or negateive value, but if the difference of tow years is overflow,
-   return INT_MAX or INT_MIN.  */
+/* Calculate the number of leap days included in a duration between
+   the specified two years. If FROM_YEAR is less or more than TO_YEAR,
+   return the positive or negateive value, otherwise, if a leap day is
+   included in FROM_YEAR same as TO_YEAR or not, return 1 or 0.  */
 
 int leapdays (int from_year, int to_year);
 

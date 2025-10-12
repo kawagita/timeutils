@@ -93,7 +93,7 @@ adjustday (struct dtm *tm)
     }
   while (days <= ydays);
 
-  if (INT_SUBTRACT_WRAPV (year, TM_YEAR_BASE, &(tm->tm_year)))
+  if (INT_SUBTRACT_WRAPV (year, TM_YEAR_BASE, &tm->tm_year))
     return -1;
   tm->tm_mon = mon;
   tm->tm_mday = days - ydays;
@@ -138,7 +138,7 @@ Options:\n\
   exit (status);
 }
 
-static const struct tmint_prop date_props[] =
+static const struct tmint_prop dt_props[] =
 {
   { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
   { 0, INT_MIN + 1, INT_MAX, 0, '\0' },
@@ -148,44 +148,42 @@ static const struct tmint_prop date_props[] =
 int
 main (int argc, char **argv)
 {
-  struct tmout_ptrs date_ptrs = { NULL };
-  struct tmout_fmt date_fmt = { false };
+  struct tmout_ptrs dt_ptrs = { NULL };
+  struct tmout_fmt dt_fmt = { false };
   struct dtm date;
-  int *date_valp[] = { &(date.tm_year), &(date.tm_mon), &(date.tm_mday) };
-  int date_values[3];
+  int *dt_valp[] = { &date.tm_year, &date.tm_mon, &date.tm_mday };
   int c, i;
   int status = EXIT_SUCCESS;
 
-  date_ptrs.tm_year = &(date.tm_year);
-  date_ptrs.tm_mon = &(date.tm_mon);
-  date_ptrs.tm_mday = &(date.tm_mday);
-  date.tm_mon = 1;
-  date.tm_mday = 1;
-  date.tm_wday = -1;
-  date.tm_yday = -1;
+  dt_ptrs.tm_year = &date.tm_year;
+  dt_ptrs.tm_mon = &date.tm_mon;
+  dt_ptrs.tm_mday = &date.tm_mday;
+
+  date.tm_mon = date.tm_mday = 1;
+  date.tm_wday = date.tm_yday = -1;
 
   while ((c = getopt (argc, argv, ":IJnwWY")) != -1)
     {
       switch (c)
         {
         case 'I':
-          date_fmt.iso8601 = true;
+          dt_fmt.iso8601 = true;
           break;
         case 'J':
-          date_fmt.japanese = true;
+          dt_fmt.japanese = true;
           break;
         case 'n':
-          date_fmt.no_newline = true;
+          dt_fmt.no_newline = true;
           break;
         case 'w':
-          date_fmt.weekday_name = true;
-          date_ptrs.tm_wday = &(date.tm_wday);
+          dt_fmt.weekday_name = true;
+          dt_ptrs.tm_wday = &date.tm_wday;
           break;
         case 'W':
-          date_fmt.week_numbering = true;
-          date_ptrs.tm_wday = &(date.tm_wday);
+          dt_fmt.week_numbering = true;
+          dt_ptrs.tm_wday = &date.tm_wday;
         case 'Y':
-          date_ptrs.tm_yday = &(date.tm_yday);
+          dt_ptrs.tm_yday = &date.tm_yday;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -202,12 +200,12 @@ main (int argc, char **argv)
      but year must be specified. */
   for (i = 0; i < argc; i++)
     {
-      int date_size = sscantmint (&(date_values[i]), &(date_props[i]), *argv);
-      if (date_size < 0)
-        usage (EXIT_FAILURE);
-      else if (date_size == 0)
+      char *endptr;
+      int set_num = sscantmintp (*argv, &dt_props[i], &dt_valp[i], &endptr);
+      if (set_num < 0)
         error (EXIT_FAILURE, 0, "invalid date value %s", *argv);
-      *date_valp[i] = date_values[i];
+      else if (set_num == 0 || *endptr != '\0')
+        usage (EXIT_FAILURE);
       argv++;
     }
 
@@ -223,7 +221,7 @@ main (int argc, char **argv)
       status = EXIT_FAILURE;
     }
 
-  printtm (&date_ptrs, &date_fmt);
+  printtm (&dt_ptrs, &dt_fmt);
 
   return status;
 }

@@ -100,7 +100,7 @@ localtimew (const intmax_t *seconds, TM *tm)
   if (tzinfo.Bias > INT_MAX || tzinfo.Bias < INT_MIN
       || INT_SUBTRACT_WRAPV (min, tzinfo.Bias, &min)
       || ! carrytm (&min, &sec, 60) || ! carrytm (&hour, &min, 60)
-      || ! carrytm (&(date.tm_mday), &hour, 24) || ! adjustday (&date))
+      || ! carrytm (&date.tm_mday, &hour, 24) || ! adjustday (&date))
     return NULL;
 
   /* Adjust parameters of time for the increase or decrease of minutes by
@@ -123,7 +123,7 @@ localtimew (const intmax_t *seconds, TM *tm)
 
       if (adj_day)
         {
-          if (INT_ADD_WRAPV (date.tm_mday, adj_day, &(date.tm_mday))
+          if (INT_ADD_WRAPV (date.tm_mday, adj_day, &date.tm_mday)
               || ! adjustday (&date))
             return NULL;
 
@@ -193,17 +193,19 @@ main (int argc, char **argv)
   struct tmout_fmt tm_fmt = { false };
   TM tm;
   intmax_t sec_values[2];
-  int sec_size;
+  intmax_t *sec_valp[] = { &sec_values[0], &sec_values[1] };
   int nsec = -1;
   int c;
   int status = EXIT_FAILURE;
+  int set_num;
+  char *endptr;
 
-  tm_ptrs.tm_year = &(tm.tm_year);
-  tm_ptrs.tm_mon = &(tm.tm_mon);
-  tm_ptrs.tm_mday = &(tm.tm_mday);
-  tm_ptrs.tm_hour = &(tm.tm_hour);
-  tm_ptrs.tm_min = &(tm.tm_min);
-  tm_ptrs.tm_sec = &(tm.tm_sec);
+  tm_ptrs.tm_year = &tm.tm_year;
+  tm_ptrs.tm_mon = &tm.tm_mon;
+  tm_ptrs.tm_mday = &tm.tm_mday;
+  tm_ptrs.tm_hour = &tm.tm_hour;
+  tm_ptrs.tm_min = &tm.tm_min;
+  tm_ptrs.tm_sec = &tm.tm_sec;
 
   tm.tm_year = - TM_YEAR_BASE;
   tm.tm_mon = -1;
@@ -219,9 +221,9 @@ main (int argc, char **argv)
         {
         case 'a':
           tm_fmt.weekday_name = true;
-          tm_ptrs.tm_wday = &(tm.tm_wday);
-          tm_ptrs.tm_gmtoff = &(tm.tm_gmtoff);
-          tm_ptrs.tm_isdst = &(tm.tm_isdst);
+          tm_ptrs.tm_wday = &tm.tm_wday;
+          tm_ptrs.tm_gmtoff = &tm.tm_gmtoff;
+          tm_ptrs.tm_isdst = &tm.tm_isdst;
           break;
         case 'I':
           tm_fmt.iso8601 = true;
@@ -234,17 +236,17 @@ main (int argc, char **argv)
           break;
         case 'w':
           tm_fmt.weekday_name = true;
-          tm_ptrs.tm_wday = &(tm.tm_wday);
+          tm_ptrs.tm_wday = &tm.tm_wday;
           break;
         case 'W':
           tm_fmt.week_numbering = true;
-          tm_ptrs.tm_wday = &(tm.tm_wday);
+          tm_ptrs.tm_wday = &tm.tm_wday;
         case 'Y':
-          tm_ptrs.tm_yday = &(tm.tm_yday);
+          tm_ptrs.tm_yday = &tm.tm_yday;
           break;
         case 'z':
-          tm_ptrs.tm_gmtoff = &(tm.tm_gmtoff);
-          tm_ptrs.tm_isdst = &(tm.tm_isdst);
+          tm_ptrs.tm_gmtoff = &tm.tm_gmtoff;
+          tm_ptrs.tm_isdst = &tm.tm_isdst;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -256,14 +258,14 @@ main (int argc, char **argv)
   if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
-  sec_size = sscantmimax (sec_values, sec_props, *argv);
-  if (sec_size < 0)
-    usage (EXIT_FAILURE);
-  else if (sec_size == 0
-           || (sec_size > 1 && INT_ADD_WRAPV (0, sec_values[1], &nsec)))
+  set_num = sscantmimaxp (*argv, sec_props, sec_valp, &endptr);
+  if (set_num < 0
+      || (set_num > 1 && INT_ADD_WRAPV (0, sec_values[1], &nsec)))
     error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
+  else if (set_num == 0 || *endptr != '\0')
+    usage (EXIT_FAILURE);
 
-  if (localtimew (&(sec_values[0]), &tm))
+  if (localtimew (&sec_values[0], &tm))
     {
       if (nsec >= 0)
         tm_ptrs.tm_frac = &nsec;

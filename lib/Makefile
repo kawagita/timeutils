@@ -7,6 +7,8 @@ ADJUSTDAY_OBJS=adjusttm.o error.o intoverflow.o leapdays.o printtm.o \
 
 GETTIME_OBJS=ft2secns.o printtm.o timeoverflow.o yeardays.o
 
+LEAPDAYS_OBJS=error.o intoverflow.o printtm.o sscantmint.o
+
 LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o sscantmimax.o \
                timeoverflow.o yeardays.o
 
@@ -23,6 +25,9 @@ libadjustday.a: $(ADJUSTDAY_OBJS)
 	$(AR) rcs $@ $^
 
 libgettime.a: $(GETTIME_OBJS)
+	$(AR) rcs $@ $^
+
+libleapdays.a: $(LEAPDAYS_OBJS)
 	$(AR) rcs $@ $^
 
 liblocaltime.a: $(LOCALTIME_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o weekday.o

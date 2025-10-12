@@ -2,7 +2,7 @@ GCC=gcc
 LD=i686-w64-mingw32-gcc
 LDFLAGS=-mconsole
 
-all: adjustday gettime localtime mktime
+all: adjustday gettime leapdays localtime mktime
 
 cygwin: cyggettime cyglocaltime cygmktime
 
@@ -10,7 +10,7 @@ msvcrt: mslocaltime msmktime
 
 .PHONY: adjustday gettime localtime mktime
 
-adjustday gettime localtime mktime:
+adjustday gettime leapdays localtime mktime:
 	(cd lib && $(MAKE) $@_test.o lib$@.a)
 	$(LD) $(LDFLAGS) -o $@ lib/$@_test.o lib/lib$@.a
 

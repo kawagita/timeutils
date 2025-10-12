@@ -24,7 +24,7 @@
 #include "wintm.h"
 
 #ifndef USE_TM_WRAPPER
-#include <time.h>
+# include <time.h>
 
 # ifdef USE_TM_MSVCRT
 long int tm_diff (struct tm const *a, struct tm const *b);
@@ -112,7 +112,7 @@ mktimew (TM *tm)
 
   /* Adjust parameters of date and time to the range of correct values. */
   if (! carrytm (&min, &sec, 60) || ! carrytm (&hour, &min, 60)
-      || ! carrytm (&(date.tm_mday), &hour, 24) || ! adjustday (&date))
+      || ! carrytm (&date.tm_mday, &hour, 24) || ! adjustday (&date))
     return -1;
 
   if (INT_ADD_WRAPV (date.tm_year, TM_YEAR_BASE, &year)
@@ -120,10 +120,18 @@ mktimew (TM *tm)
     return -1;
 
   /* Count the number of days since Unix epoch including some leap days
-     and set the day of week to the remainder of dividing its value by 7. */
+     and set the week day to the remainder of dividing its value by 7. */
   if (year ^ UNIXEPOCH_YEAR)
-    ldays = leapdays (UNIXEPOCH_YEAR,
-                      (year > UNIXEPOCH_YEAR ? year - 1 : year + 1));
+    {
+      int from_year = UNIXEPOCH_YEAR;
+      int to_year = year;
+      if (year > UNIXEPOCH_YEAR)
+        to_year--;
+      else
+        from_year--;
+
+      ldays = leapdays (from_year, to_year);
+    }
 
   if (IMAX_MULTIPLY_WRAPV (epochyears, 365, &epochdays)
       || (ldays && IMAX_ADD_WRAPV (epochdays, ldays, &epochdays))
@@ -131,10 +139,6 @@ mktimew (TM *tm)
     return -1;
 
   date.tm_wday = ((int)(epochdays % 7) + UNIXEPOCH_WEEKDAY + 7) % 7;
-
-  /* Increment negative days and subtract 24 hours from time in a day. */
-  if (epochdays < 0)
-    epochdays++;
 
   /* Add the number of seconds converted from time in a day to Unix seconds. */
   if (IMAX_MULTIPLY_WRAPV (epochdays, SECONDS_IN_DAY, &seconds)
@@ -164,7 +168,7 @@ mktimew (TM *tm)
 
       if (adj_day)
         {
-          if (INT_ADD_WRAPV (date.tm_mday, adj_day, &(date.tm_mday))
+          if (INT_ADD_WRAPV (date.tm_mday, adj_day, &date.tm_mday)
               || ! adjustday (&date))
             return -1;
 
@@ -225,16 +229,16 @@ performed, othewise, \"0000-00-00 00:00:00\".\n\
 \n\
 Adjust seconds and time if DST is in effect. With -D or -S, specified\n\
 parameters of time have already been effected by DST offset or not.\n\
+\n\
 ", stdout);
 # ifdef USE_TM_WRAPPER
   fputs ("\
-\n\
 With -C (default) or -M, adjust time by DST offset or not for a time\n\
 that is skipped over and repeated in transition date.\n\
+\n\
 ", stdout);
 # endif
   fputs ("\
-\n\
 Options:\n\
   -a   output time with elapsed seconds, week day name, and time zone\n\
   -e   output time with elapsed seconds\n\
@@ -253,11 +257,7 @@ Options:\n\
 static const struct tmint_prop tm_props[] =
 {
   { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
-  { 0, INT_MIN + 1, INT_MAX, 0, '\0' },
-  { 0, INT_MIN, INT_MAX, 0, '\0' },
-  { 0, INT_MIN, INT_MAX, 0, '\0' },
-  { 0, INT_MIN, INT_MAX, 0, '\0' },
-  { 0, INT_MIN, INT_MAX, 0, '\0' }
+  { 0, INT_MIN + 1, INT_MAX, 0, '\0' }
 };
 
 int
@@ -269,19 +269,17 @@ main (int argc, char **argv)
   intmax_t seconds;
   int *tm_valp[] =
     {
-      &(tm.tm_year), &(tm.tm_mon), &(tm.tm_mday),
-      &(tm.tm_hour), &(tm.tm_min), &(tm.tm_sec)
+      &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+      &tm.tm_hour, &tm.tm_min, &tm.tm_sec
     };
-  int tm_values[6];
   int c, i;
   int status = EXIT_SUCCESS;
-  bool only_seconds_output = false;
-  bool wday_output = false;
-  bool yday_output = false;
-  bool tz_output = false;
+  bool only_seconds_set = false;
+  bool weekday_set = false;
+  bool yearday_set = false;
+  bool timezone_set = false;
 
-  tm.tm_mon = 1;
-  tm.tm_mday = 1;
+  tm.tm_mon = tm.tm_mday = 1;
   tm.tm_wday = tm.tm_yday = -1;
   tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
   tm.tm_isdst = -1;
@@ -294,11 +292,11 @@ main (int argc, char **argv)
         case 'a':
           tm_ptrs.tm_elapse = &seconds;
           tm_fmt.weekday_name = true;
-          wday_output = true;
-          tz_output = true;
+          weekday_set = true;
+          timezone_set = true;
           break;
         case 'E':
-          only_seconds_output = true;
+          only_seconds_set = true;
         case 'e':
           tm_ptrs.tm_elapse = &seconds;
           break;
@@ -313,16 +311,16 @@ main (int argc, char **argv)
           break;
         case 'w':
           tm_fmt.weekday_name = true;
-          wday_output = true;
+          weekday_set = true;
           break;
         case 'W':
           tm_fmt.week_numbering = true;
-          wday_output = true;
+          weekday_set = true;
         case 'Y':
-          yday_output = true;
+          yearday_set = true;
           break;
         case 'z':
-          tz_output = true;
+          timezone_set = true;
           break;
         case 'D':
           tm.tm_isdst = 1;
@@ -348,22 +346,22 @@ main (int argc, char **argv)
 
   if (argc <= 0 || argc > 6)
     usage (EXIT_FAILURE);
-  else if (! only_seconds_output)
+  else if (! only_seconds_set)
     {
-      tm_ptrs.tm_year = &(tm.tm_year);
-      tm_ptrs.tm_mon = &(tm.tm_mon);
-      tm_ptrs.tm_mday = &(tm.tm_mday);
-      tm_ptrs.tm_hour = &(tm.tm_hour);
-      tm_ptrs.tm_min = &(tm.tm_min);
-      tm_ptrs.tm_sec = &(tm.tm_sec);
-      if (wday_output)
-        tm_ptrs.tm_wday = &(tm.tm_wday);
-      if (yday_output)
-        tm_ptrs.tm_yday = &(tm.tm_yday);
-      if (tz_output)
+      tm_ptrs.tm_year = &tm.tm_year;
+      tm_ptrs.tm_mon = &tm.tm_mon;
+      tm_ptrs.tm_mday = &tm.tm_mday;
+      tm_ptrs.tm_hour = &tm.tm_hour;
+      tm_ptrs.tm_min = &tm.tm_min;
+      tm_ptrs.tm_sec = &tm.tm_sec;
+      if (weekday_set)
+        tm_ptrs.tm_wday = &tm.tm_wday;
+      if (yearday_set)
+        tm_ptrs.tm_yday = &tm.tm_yday;
+      if (timezone_set)
         {
-          tm_ptrs.tm_isdst = &(tm.tm_isdst);
-          tm_ptrs.tm_gmtoff = &(tm.tm_gmtoff);
+          tm_ptrs.tm_isdst = &tm.tm_isdst;
+          tm_ptrs.tm_gmtoff = &tm.tm_gmtoff;
         }
     }
 
@@ -371,12 +369,16 @@ main (int argc, char **argv)
      but year must be specified. */
   for (i = 0; i < argc; i++)
     {
-      int tm_size = sscantmint (&(tm_values[i]), &(tm_props[i]), *argv);
-      if (tm_size < 0)
-        usage (EXIT_FAILURE);
-      else if (tm_size == 0)
+      char *endptr;
+      int set_num;
+      if (i < 2)
+        set_num = sscantmintp (*argv, &tm_props[i], &tm_valp[i], &endptr);
+      else
+        set_num = sscantmint (*argv, tm_valp[i], &endptr);
+      if (set_num < 0)
         error (EXIT_FAILURE, 0, "invalid time value %s", *argv);
-      *tm_valp[i] = tm_values[i];
+      else if (set_num == 0 || *endptr != '\0')
+        usage (EXIT_FAILURE);
       argv++;
     }
 
