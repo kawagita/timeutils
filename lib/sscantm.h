@@ -24,8 +24,8 @@ struct tmint_prop
   /* If zero, parse '-' or '+' as a sign, otherwise, parse only digits
      as the positive or negative value */
   int sign;
-  int minval;
-  int maxval;
+  int min_value;
+  int max_value;
   /* If greater than 0, parse a string as fractional part for the previous
      integer and skip digits over this value, and if the integer part is
      negative, decrement it and subtract the fractional part from 1.0 */
@@ -45,8 +45,8 @@ int sscantmint (const char *str, int *tm_value, char **endptr);
    **TM_VALP, storing the pointer to '\0' or a failed character into
    the *ENDPTR. Continue to parse the string for numbers specified by
    *TM_PROPS until parsing is terminated by '\0'. Return the nubmer of
-   set values, or -1 if a parsed value is outside the range of MINVAL
-   to MAXVAL.  */
+   set values, or -1 if a parsed value is outside the range of MIN_VALUE
+   to MAX_VALUE.  */
 
 int sscantmintp (const char *str, const struct tmint_prop *tm_props,
                  int **tm_valp, char **endptr);
@@ -57,8 +57,8 @@ int sscantmintp (const char *str, const struct tmint_prop *tm_props,
 struct tmimax_prop
 {
   int sign;
-  intmax_t minval;
-  intmax_t maxval;
+  intmax_t min_value;
+  intmax_t max_value;
   int frac_digits;
   int delim;
 };
@@ -75,8 +75,8 @@ int sscantmimax (const char *str, intmax_t *tm_value, char **endptr);
    *TM_VALP, storing the pointer to '\0' or a failed character into
    the *ENDPTR. Continue to parse the string for numbers specified by
    *TM_PROPS until parsing is terminated by '\0'. Return the nubmer of
-   set values, or -1 if a parsed value is outside the range of MINVAL
-   to MAXVAL.  */
+   set values, or -1 if a parsed value is outside the range of MIN_VALUE
+   to MAX_VALUE.  */
 
 int sscantmimaxp (const char *str, const struct tmimax_prop *tm_props,
                   intmax_t **tm_valp, char **endptr);

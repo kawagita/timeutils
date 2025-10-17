@@ -16,11 +16,24 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
+/* The format of time output to standard output  */
+
+struct tmout_fmt
+{
+  bool weekday_name;
+  bool week_numbering;
+  bool relative;
+  bool iso8601;
+  bool japanese;
+  bool no_newline;
+};
+
 /* Pointers to parameters of time output to standard output  */
 
 struct tmout_ptrs
 {
   intmax_t *tm_elapse;
+  const char *elapse_delim;
   int *tm_year;
   int *tm_mon;
   int *tm_mday;
@@ -34,19 +47,8 @@ struct tmout_ptrs
   int *tm_isdst;
 };
 
-/* The format of time output to standard output  */
+/* Output each parameter of time included in *TM_PTRS to standard output
+   if its pointer is not NULL, according to the format of members in
+   *TM_FMT. Return the number of output parameters.  */
 
-struct tmout_fmt
-{
-  bool weekday_name;
-  bool week_numbering;
-  bool iso8601;
-  bool japanese;
-  bool no_newline;
-};
-
-/* Output each parameter of time included in *TM if its pointer is not NULL,
-   according to the format of members in *TM_FMT. Return the number of output
-   parameters.  */
-
-int printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt);
+int printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs);

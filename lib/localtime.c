@@ -189,8 +189,8 @@ static const struct tmimax_prop sec_props[] =
 int
 main (int argc, char **argv)
 {
-  struct tmout_ptrs tm_ptrs = { NULL };
   struct tmout_fmt tm_fmt = { false };
+  struct tmout_ptrs tm_ptrs = { NULL };
   TM tm;
   intmax_t sec_values[2];
   intmax_t *sec_valp[] = { &sec_values[0], &sec_values[1] };
@@ -273,7 +273,7 @@ main (int argc, char **argv)
       status = EXIT_SUCCESS;
     }
 
-  printtm (&tm_ptrs, &tm_fmt);
+  printtm (&tm_fmt, &tm_ptrs);
 
   return status;
 }

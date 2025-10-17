@@ -71,8 +71,8 @@ Options:\n\
 int
 main (int argc, char **argv)
 {
-  struct tmout_ptrs sec_ptrs = { NULL };
   struct tmout_fmt sec_fmt = { false };
+  struct tmout_ptrs sec_ptrs = { NULL };
   FILETIME ft;
   intmax_t seconds = -1;
   int nsec = -1;
@@ -101,7 +101,7 @@ main (int argc, char **argv)
   else if (gettime (&ft) && FILETIME_TO_SECONDS_NSEC (&ft, &seconds, &nsec))
     status = EXIT_SUCCESS;
 
-  printtm (&sec_ptrs, &sec_fmt);
+  printtm (&sec_fmt, &sec_ptrs);
 
   return status;
 }

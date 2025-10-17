@@ -43,7 +43,7 @@ static const char *wday_abbrs[] =
   (((y1st_wday) ^ 4 && ((y1st_wday) ^ 3 || (has_noleapday))) ? 52 : 53)
 
 /* Return the week number for the specified day in *YEAR.  */
-int
+static int
 weeknumber (int *year, int yday, int wday, bool iso8601)
 {
   int weeknum = 1;
@@ -105,18 +105,20 @@ static struct era_prop jera_props[] =
 };
 
 /* Return a symbol character for the japanese era in YEAR and YDAY.  */
-int
-japanese_era (int *year, int yday)
+static int
+japanese_era (int *year, int *yday)
 {
   struct era_prop *jera_prop = jera_props;
   if (jera_prop->from_year <= *year)
     {
       while (jera_prop->symbol)
         {
-          if ((jera_prop->from_year == *year && jera_prop->from_yday <= yday)
+          if ((jera_prop->from_year == *year && jera_prop->from_yday <= *yday)
               || (jera_prop->from_year < *year && jera_prop->to_year > *year)
-              || (jera_prop->to_year == *year && jera_prop->to_yday >= yday))
+              || (jera_prop->to_year == *year && jera_prop->to_yday >= *yday))
             {
+              if (jera_prop->from_year == *year)
+                *yday -= jera_prop->from_yday;
               *year -= jera_prop->from_year - jera_prop->start_number;
 
               return jera_prop->symbol;
@@ -129,17 +131,38 @@ japanese_era (int *year, int yday)
   return 0;
 }
 
-/* Return the string of a state whether DST is in effect  */
-#define DST_STATE(isdst) ((isdst) ? ((isdst) > 0 ? " DST" : " N/A") : "")
+/* Output a parameter of date or time to standard output.  */
+static int
+printdatetime (int value, int leading_char, int width)
+{
+  char format[] = "%01d";
 
-/* A delimiter between seconds since Unix epoch and parameters of time  */
-#define TM_DELIM "\t"
+  if (width > 0 && width < 10)
+    {
+      if (value < 0 && width == 2)
+        {
+          /* Change the delimiter to '+' if negative value. */
+          value = value > INT_MIN ? - value : INT_MAX;
+          leading_char = '+';
+        }
 
-/* Output each parameter of time included in *TM if its pointer is not NULL,
-   according to *TM_FMT. Return the number of output parameters.  */
+      format[2] = '0' + width;
+    }
+
+  if (leading_char)
+    fputc (leading_char, stdout);
+
+  printf (format, value);
+
+  return 1;
+}
+
+/* Output each parameter of time included in *TM_PTRS to standard output
+   if its pointer is not NULL, according to the format of members in
+   *TM_FMT. Return the number of output parameters.  */
 
 int
-printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
+printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
 {
   int tmout_size = 0;
   bool elapse_leading = false;
@@ -147,17 +170,20 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
   bool sec_output = false;
   bool japanese = tm_fmt->japanese && ((tm_ptrs->tm_mon && tm_ptrs->tm_mday)
                                        || tm_ptrs->tm_yday);
-  bool iso8601 = tm_fmt->iso8601 && !tm_fmt->japanese;
-  bool week_numbering = tm_fmt->week_numbering && !tm_fmt->japanese
+  bool iso8601 = tm_fmt->iso8601 && !japanese;
+  bool week_numbering = tm_fmt->week_numbering && !japanese
                         && tm_ptrs->tm_wday && tm_ptrs->tm_yday;
+  bool relative = tm_fmt->relative && !japanese && !iso8601;
+  const char *elapse_delim = tm_ptrs->elapse_delim
+                             ? tm_ptrs->elapse_delim : " ";
 
-  /* Output seconds since Unix epoch. */
+  /* Output the value elapsed since a time. */
   if (tm_ptrs->tm_elapse)
     {
       printf ("%" PRIdMAX, *(tm_ptrs->tm_elapse));
       tmout_size++;
       elapse_leading = true;
-      sec_output = true;
+      sec_output = tm_ptrs->elapse_delim ? false : true;
     }
 
   /* Output an abbreviation for the week day. */
@@ -170,9 +196,10 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
 
       if (elapse_leading)
         {
-          fputs (TM_DELIM, stdout);
+          fputs (elapse_delim, stdout);
           elapse_leading = false;
         }
+
       printf ("%s", wday_abbr);
       tmout_size++;
     }
@@ -181,41 +208,54 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
   if (tm_ptrs->tm_year)
     {
       int year = *(tm_ptrs->tm_year) + TM_YEAR_BASE;
+      int year_leading_char = 0;
       int date_delim = '-';
-      int era_symbol = 0;
+      int date_width = 0;
       int weeknum = -1;
+      int yday = tm_ptrs->tm_yday ? *(tm_ptrs->tm_yday) : -1;
 
       if (elapse_leading)
         {
-          fputs (TM_DELIM, stdout);
+          fputs (elapse_delim, stdout);
           elapse_leading = false;
         }
       else if (tmout_size > 0)
-        fputc (' ', stdout);
+        year_leading_char = ' ';
 
-      /* Calculate the era symbol or week number of the specified date firstly
-         because year changes may vary. */
+      /* Calculate the era symbol or week number of the specified date
+         firstly because year changes may vary. */
       if (japanese)
         {
-          int yday = tm_ptrs->tm_yday ? *(tm_ptrs->tm_yday)
-                                      : YEAR_DAYS (year, *(tm_ptrs->tm_mon))
-                                        + *(tm_ptrs->tm_mday) - 1;
-          era_symbol = japanese_era (&year, yday);
+          int era_yday = yday >= 0 ? *(tm_ptrs->tm_yday)
+                                   : YEAR_DAYS (year, *(tm_ptrs->tm_mon))
+                                     + *(tm_ptrs->tm_mday) - 1;
+          int era_symbol = japanese_era (&year, &era_yday);
+          if (era_symbol)
+            {
+              if (year_leading_char)
+                fputc (year_leading_char, stdout);
+
+              year_leading_char = era_symbol;
+              date_width = 2;
+              date_delim = '.';
+
+              if (yday >= 0)
+                yday = era_yday;
+            }
         }
       else if (week_numbering)
         weeknum = weeknumber (&year,
                     *(tm_ptrs->tm_yday), *(tm_ptrs->tm_wday), iso8601);
 
-      if (era_symbol)
+      if (relative)
         {
-          printf ("%c%02d", era_symbol, year);
-          date_delim = '.';
+          date_delim = ' ';
+          date_width = 1;
         }
-      else if (year >= 0)
-        printf ("%04d", year);
-      else
-        printf ("%05d", year);
-      tmout_size++;
+      else if (date_width == 0)
+        date_width = year < 0 ? 5 : 4;
+
+      tmout_size += printdatetime (year, year_leading_char, date_width);
 
       if (weeknum >= 0)  /* Week number and day */
         {
@@ -234,67 +274,61 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
               tmout_size++;
             }
         }
-      else if (tm_ptrs->tm_yday && !era_symbol)  /* Ordinal date */
+      else if (yday >= 0)  /* Ordinal date */
         {
-          printf ("-%03d", *(tm_ptrs->tm_yday) + 1);
+          printf ("-%03d", yday + 1);
           tmout_size++;
         }
       else if (tm_ptrs->tm_mon)  /* Month and day */
         {
-          int month = *(tm_ptrs->tm_mon) + 1;
-          int month_delim = date_delim;
-          if (month < 0)
-            {
-              /* Change the delimiter to '+' if negative value. */
-              month = - month;
-              month_delim = '+';
-            }
+          if (date_width >= 4)
+             date_width = 2;
 
-          printf ("%c%02d", month_delim, month);
-          tmout_size++;
+          tmout_size += printdatetime (
+                          *(tm_ptrs->tm_mon) + 1, date_delim, date_width);
 
           if (tm_ptrs->tm_mday)
-            {
-              int day = *(tm_ptrs->tm_mday);
-              int day_delim = date_delim;
-              if (day < 0)
-                {
-                  /* Change the delimiter to '+' if negative value. */
-                  day = day > INT_MIN ? - day : INT_MAX;
-                  day_delim = '+';
-                }
-
-              printf ("%c%02d", day_delim, day);
-              tmout_size++;
-            }
+            tmout_size += printdatetime (
+                            *(tm_ptrs->tm_mday), date_delim, date_width);
         }
     }
 
   /* Output the time in a day, starting with the hour. */
   if (tm_ptrs->tm_hour)
     {
+      int hour = *(tm_ptrs->tm_hour);
+      int hour_leading_char = 0;
+      int time_delim = ':';
+      int time_width = 2;
+
       if (elapse_leading)
         {
-          fputs (TM_DELIM, stdout);
+          fputs (elapse_delim, stdout);
           elapse_leading = false;
         }
       else if (tm_ptrs->tm_year && iso8601)
-        fputc ('T', stdout);
+        hour_leading_char = 'T';
       else if (tmout_size > 0)
-        fputc (' ', stdout);
-      printf ("%02d", *(tm_ptrs->tm_hour));
-      tmout_size++;
+        hour_leading_char = ' ';
+
+      if (relative)
+        {
+          time_delim = ' ';
+          time_width = 1;
+        }
+
+      tmout_size += printdatetime (hour, hour_leading_char, time_width);
       hour_output = true;
 
       if (tm_ptrs->tm_min)  /* Minute and second */
         {
-          printf (":%02d", *(tm_ptrs->tm_min));
-          tmout_size++;
+          tmout_size += printdatetime (
+                          *(tm_ptrs->tm_min), time_delim, time_width);
 
           if (tm_ptrs->tm_sec)
             {
-              printf (":%02d", *(tm_ptrs->tm_sec));
-              tmout_size++;
+              tmout_size += printdatetime (
+                              *(tm_ptrs->tm_sec), time_delim, time_width);
               sec_output = true;
             }
         }
@@ -303,8 +337,16 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
   /* Output the fractional part of seconds. */
   if (tm_ptrs->tm_frac && sec_output)
     {
-      printf (".%07d", *(tm_ptrs->tm_frac));
-      tmout_size++;
+      int frac_delim = '.';
+      int frac_width = 7;
+
+      if (relative)
+        {
+          frac_delim = ' ';
+          frac_width = 1;
+        }
+
+      tmout_size += printdatetime (*(tm_ptrs->tm_frac), frac_delim, frac_width);
     }
 
   /* Output the information of time zone. */
@@ -315,13 +357,21 @@ printtm (const struct tmout_ptrs *tm_ptrs, const struct tmout_fmt *tm_fmt)
 
       if (!iso8601)
         fputc (' ', stdout);
+
       printf ("%c%02ld%02d", (gmtoff_min < 0 ? '-' : '+'),
               abs_gmtoff_min / 60, (int)(abs_gmtoff_min % 60));
       tmout_size++;
 
       if (tm_ptrs->tm_isdst && !iso8601)  /* DST or not */
         {
-          fputs (DST_STATE (*(tm_ptrs->tm_isdst)), stdout);
+          char *dst_state = "";
+          int isdst = *(tm_ptrs->tm_isdst);
+          if (isdst > 0)
+            dst_state = " DST";
+          else if (isdst < 0)
+            dst_state = " UNK";
+
+          fputs (dst_state, stdout);
           tmout_size++;
         }
     }

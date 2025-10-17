@@ -148,8 +148,8 @@ static const struct tmint_prop dt_props[] =
 int
 main (int argc, char **argv)
 {
-  struct tmout_ptrs dt_ptrs = { NULL };
   struct tmout_fmt dt_fmt = { false };
+  struct tmout_ptrs dt_ptrs = { NULL };
   struct dtm date;
   int *dt_valp[] = { &date.tm_year, &date.tm_mon, &date.tm_mday };
   int c, i;
@@ -221,7 +221,7 @@ main (int argc, char **argv)
       status = EXIT_FAILURE;
     }
 
-  printtm (&dt_ptrs, &dt_fmt);
+  printtm (&dt_fmt, &dt_ptrs);
 
   return status;
 }

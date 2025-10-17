@@ -263,8 +263,8 @@ static const struct tmint_prop tm_props[] =
 int
 main (int argc, char **argv)
 {
-  struct tmout_ptrs tm_ptrs = { NULL };
   struct tmout_fmt tm_fmt = { false };
+  struct tmout_ptrs tm_ptrs = { NULL };
   TM tm;
   intmax_t seconds;
   int *tm_valp[] =
@@ -348,6 +348,8 @@ main (int argc, char **argv)
     usage (EXIT_FAILURE);
   else if (! only_seconds_set)
     {
+      if (tm_ptrs.tm_elapse)
+        tm_ptrs.elapse_delim = "\t";
       tm_ptrs.tm_year = &tm.tm_year;
       tm_ptrs.tm_mon = &tm.tm_mon;
       tm_ptrs.tm_mday = &tm.tm_mday;
@@ -397,7 +399,7 @@ main (int argc, char **argv)
       status = EXIT_FAILURE;
     }
 
-  printtm (&tm_ptrs, &tm_fmt);
+  printtm (&tm_fmt, &tm_ptrs);
 
   return status;
 }
