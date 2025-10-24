@@ -1,4 +1,4 @@
-/* Convert seconds and nanoseconds since Unix epoch to the file time in NTFS
+/* Convert seconds and nanoseconds since Unix epoch to file time in NTFS
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -21,32 +21,64 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef USE_TM_CYGWIN
+# include <time.h>
+#endif
+
 #include "timeoverflow.h"
 #include "wintm.h"
 
-/* Convert the specified seconds and nanoseconds since Unix epoch to file
-   time and set its value into *FT. Return true if conversion is performed,
-   otherwise, false.  */
+/* Convert the specified seconds and 100 nanoseconds since Unix epoch
+   to file time and set its value into *FT unless not NULL. Return 100
+   nanoseconds since 1601-01-01 00:00 UTC of file time if NSEC is more
+   than or equal to 0 and conversion is performed, otherwise, 0.  */
 
-bool
-secns2ft (const intmax_t seconds, const int nsec, FILETIME *ft)
+intmax_t
+secns2ftval (intmax_t seconds, int nsec, FT *ft)
 {
-  if (! timew_overflow (seconds))
+  if (nsec >= 0 && ! timew_overflow (seconds))
     {
       LARGE_INTEGER ft_val;
 
-      ft_val.QuadPart = ((LONGLONG)seconds + FILETIME_UNIXEPOCH_SECONDS)
-                        * FILETIME_FRAC_PRECISION;
+      while (nsec >= FT_FRAC_PRECISION)
+        nsec /= 10;
 
-      if (nsec >= 0 && nsec < FILETIME_FRAC_PRECISION)
+      ft_val.QuadPart = ((LONGLONG)seconds + FT_UNIXEPOCH_SECONDS)
+                        * FT_FRAC_PRECISION + nsec;
+
+      if (ft)
         {
-          ft_val.QuadPart += nsec;
+#ifdef USE_TM_CYGWIN
+          ft->tv_sec = seconds;
+          ft->tv_nsec = nsec;
+#else
           ft->dwHighDateTime = ft_val.HighPart;
           ft->dwLowDateTime = ft_val.LowPart;
-
-          return true;
+#endif
         }
+
+      return ft_val.QuadPart;
     }
 
-  return false;
+  return 0;
+}
+
+/* Convert the specified seconds and 100 nanoseconds since Unix epoch to
+   file time and set its value into *FT. Return true if NSEC is more than
+   or equal to 0 and conversion is performed, otherwise, false.  */
+
+bool
+secns2ft (intmax_t seconds, int nsec, FT *ft)
+{
+  if (seconds || nsec)
+    return secns2ftval (seconds, nsec, ft) != 0L;
+
+#ifdef USE_TM_CYGWIN
+  ft->tv_sec = 0;
+  ft->tv_nsec = 0L;
+#else
+  ft->dwHighDateTime = ft->dwLowDateTime = 0;
+#endif
+
+  return true;
 }

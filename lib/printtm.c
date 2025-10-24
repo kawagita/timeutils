@@ -180,7 +180,7 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
   /* Output the value elapsed since a time. */
   if (tm_ptrs->tm_elapse)
     {
-      printf ("%" PRIdMAX, *(tm_ptrs->tm_elapse));
+      printf ("%" PRIdMAX, *tm_ptrs->tm_elapse);
       tmout_size++;
       elapse_leading = true;
       sec_output = tm_ptrs->elapse_delim ? false : true;
@@ -190,7 +190,7 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
   if (tm_ptrs->tm_wday && tm_fmt->weekday_name)
     {
       const char *wday_abbr = UNKNOWN_WDAY_ABBR;
-      int wday = *(tm_ptrs->tm_wday);
+      int wday = *tm_ptrs->tm_wday;
       if (wday >= 0 && wday <= 6)
         wday_abbr = wday_abbrs[wday];
 
@@ -207,12 +207,12 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
   /* Output the date, starting with the year. */
   if (tm_ptrs->tm_year)
     {
-      int year = *(tm_ptrs->tm_year) + TM_YEAR_BASE;
+      int year = *tm_ptrs->tm_year + TM_YEAR_BASE;
       int year_leading_char = 0;
       int date_delim = '-';
       int date_width = 0;
       int weeknum = -1;
-      int yday = tm_ptrs->tm_yday ? *(tm_ptrs->tm_yday) : -1;
+      int yday = tm_ptrs->tm_yday ? *tm_ptrs->tm_yday : -1;
 
       if (elapse_leading)
         {
@@ -226,9 +226,9 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
          firstly because year changes may vary. */
       if (japanese)
         {
-          int era_yday = yday >= 0 ? *(tm_ptrs->tm_yday)
-                                   : YEAR_DAYS (year, *(tm_ptrs->tm_mon))
-                                     + *(tm_ptrs->tm_mday) - 1;
+          int era_yday = yday >= 0 ? *tm_ptrs->tm_yday
+                                   : YEAR_DAYS (year, *tm_ptrs->tm_mon)
+                                     + *tm_ptrs->tm_mday - 1;
           int era_symbol = japanese_era (&year, &era_yday);
           if (era_symbol)
             {
@@ -245,7 +245,7 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
         }
       else if (week_numbering)
         weeknum = weeknumber (&year,
-                    *(tm_ptrs->tm_yday), *(tm_ptrs->tm_wday), iso8601);
+                    *tm_ptrs->tm_yday, *tm_ptrs->tm_wday, iso8601);
 
       if (relative)
         {
@@ -264,7 +264,7 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
 
           if (!tm_fmt->weekday_name)
             {
-              int wday = *(tm_ptrs->tm_wday);
+              int wday = *tm_ptrs->tm_wday;
               if (wday < 0)
                 wday = 0;
               else if (iso8601)
@@ -285,18 +285,18 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
              date_width = 2;
 
           tmout_size += printdatetime (
-                          *(tm_ptrs->tm_mon) + 1, date_delim, date_width);
+                          *tm_ptrs->tm_mon + 1, date_delim, date_width);
 
           if (tm_ptrs->tm_mday)
             tmout_size += printdatetime (
-                            *(tm_ptrs->tm_mday), date_delim, date_width);
+                            *tm_ptrs->tm_mday, date_delim, date_width);
         }
     }
 
   /* Output the time in a day, starting with the hour. */
   if (tm_ptrs->tm_hour)
     {
-      int hour = *(tm_ptrs->tm_hour);
+      int hour = *tm_ptrs->tm_hour;
       int hour_leading_char = 0;
       int time_delim = ':';
       int time_width = 2;
@@ -323,12 +323,12 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
       if (tm_ptrs->tm_min)  /* Minute and second */
         {
           tmout_size += printdatetime (
-                          *(tm_ptrs->tm_min), time_delim, time_width);
+                          *tm_ptrs->tm_min, time_delim, time_width);
 
           if (tm_ptrs->tm_sec)
             {
               tmout_size += printdatetime (
-                              *(tm_ptrs->tm_sec), time_delim, time_width);
+                              *tm_ptrs->tm_sec, time_delim, time_width);
               sec_output = true;
             }
         }
@@ -346,13 +346,13 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
           frac_width = 1;
         }
 
-      tmout_size += printdatetime (*(tm_ptrs->tm_frac), frac_delim, frac_width);
+      tmout_size += printdatetime (*tm_ptrs->tm_frac, frac_delim, frac_width);
     }
 
   /* Output the information of time zone. */
   if (tm_ptrs->tm_gmtoff && hour_output)
     {
-      long int gmtoff_min = *(tm_ptrs->tm_gmtoff) / 60;
+      long int gmtoff_min = *tm_ptrs->tm_gmtoff / 60;
       long int abs_gmtoff_min = gmtoff_min < 0 ? - gmtoff_min : gmtoff_min;
 
       if (!iso8601)
@@ -365,7 +365,7 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
       if (tm_ptrs->tm_isdst && !iso8601)  /* DST or not */
         {
           char *dst_state = "";
-          int isdst = *(tm_ptrs->tm_isdst);
+          int isdst = *tm_ptrs->tm_isdst;
           if (isdst > 0)
             dst_state = " DST";
           else if (isdst < 0)

@@ -16,47 +16,85 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-/* The start year in file time  */
+/* The structure into which file time is set  */
 
-#define FILETIME_YEAR_MIN 1601
+#ifdef USE_TM_CYGWIN
+typedef struct timespec FT;
+#else
+typedef FILETIME FT;
+#endif
 
 /* The precision and number of digits for a fractional second in file time  */
 
-#define FILETIME_FRAC_PRECISION 10000000
-#define FILETIME_FRAC_DIGITS    7
+#define FT_FRAC_PRECISION 10000000
+#define FT_FRAC_DIGITS    7
 
 /* Seconds to Unix epoch in file time  */
 
-#define FILETIME_UNIXEPOCH_SECONDS 11644473600LL
+#define FT_UNIXEPOCH_SECONDS 11644473600LL
+
+/* Return the value of 100-nanoseconds unit elapsed since 1601-01-01 00:00
+   UTC in FILETIME, converted from the specified file time. If conversion
+   is not performed, return 0.  */
+
+intmax_t toftval (const FT *ft);
 
 /* Convert the specified file time to seconds and 100 nanoseconds since Unix
    epoch. Set its value into *SECONDS but nanoseconds into *NSEC unless not
-   not NULL. Return true if conversion is performed, otherwise, false.  */
+   NULL. Return true if conversion is performed, otherwise, false.  */
 
-bool ft2secns (const FILETIME *ft, intmax_t *seconds, int *nsec);
-
-#define FILETIME_TO_SECONDS_NSEC(ft,seconds,nsec) ft2secns (ft, seconds, nsec)
-#define FILETIME_TO_SECONDS(ft,seconds)           ft2secns (ft, seconds, NULL)
+bool ft2secns (const FT *ft, intmax_t *seconds, int *nsec);
 
 /* Convert the specified seconds and 100 nanoseconds since Unix epoch to
-   file time and set its value into *FT. If NSEC is less than 0, never change
-   it. Return true if conversion is performed, otherwise, false.  */
+   file time and set its value into *FT. Return true if NSEC is more than
+   or equal to 0 and conversion is performed, otherwise, false.  */
 
-bool secns2ft (const intmax_t seconds, const int nsec, FILETIME *ft);
+bool secns2ft (intmax_t seconds, int nsec, FT *ft);
 
-#define SECONDS_NSEC_TO_FILETIME(seconds,ns,ft) secns2ft (seconds, ns, ft)
-#define SECONDS_TO_FILETIME(seconds,ft)         secns2ft (seconds, 0, ft)
+/* The size or each index of file times, set in a file  */
 
-/* The year which is set as a zero into the tm struct  */
+#ifdef USE_TM_CYGWIN
+# define FT_SIZE 2
+#else
+# define FT_SIZE 3
+#endif
+
+#define FT_ATIME 0  /* Last access time */
+#define FT_MTIME 1  /* Last write time */
+#define FT_CTIME 2  /* Creation time */
+
+/* The structure of a file  */
+
+struct file
+{
+#ifdef USE_TM_CYGWIN
+  const char *name;
+#else
+  LPCWSTR name;
+#endif
+  bool no_dereference;
+  bool isdir;
+};
+
+/* Get file times for the specified struct file into FT and set the flag
+   of a directory into the isdir member in *FT_FILE. If the no_dereference
+   member is true, get the time of symbolic link on Cygwin but not a file
+   referenced by it. Return true if successfull, otherwise, false.  */
+
+bool getft (FT ft[FT_SIZE], struct file *ft_file);
+
+/* The year which is set as a zero into the struct TM  */
 
 #ifndef TM_YEAR_BASE
 # define TM_YEAR_BASE 1900
 #endif
 
+/* The structure of time to use by calculation  */
+
 #ifdef USE_TM_CYGWIN
-# define TM struct tm
+typedef struct tm TM;
 #else
-# define TM struct wintm
+typedef struct wintm TM;
 
 /* Parameters of time to use in the environment of Windows  */
 

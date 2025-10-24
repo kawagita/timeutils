@@ -15,7 +15,11 @@
    awith this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-#include <windows.h>
+#include "config.h"
+
+#ifndef USE_TM_CYGWIN
+# include <windows.h>
+#endif
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -128,9 +132,9 @@ YEAR and MONTH by carried value. Display those date if adjustment is\n\
 performed, othewise, \"0000-00-00\".\n\
 \n\
 Options:\n\
-  -n   don't output the trailing newline\n\
   -I   output date in ISO 8601 format\n\
   -J   output date in Japanese era name and number\n\
+  -n   don't output the trailing newline\n\
   -w   output date with week day name\n\
   -W   output date with week number and day\n\
   -Y   output date with year day\n\
@@ -138,27 +142,20 @@ Options:\n\
   exit (status);
 }
 
-static const struct tmint_prop dt_props[] =
-{
-  { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
-  { 0, INT_MIN + 1, INT_MAX, 0, '\0' },
-  { 0, INT_MIN, INT_MAX, 0, '\0' }
-};
-
 int
 main (int argc, char **argv)
 {
   struct tmout_fmt dt_fmt = { false };
   struct tmout_ptrs dt_ptrs = { NULL };
   struct dtm date;
-  int *dt_valp[] = { &date.tm_year, &date.tm_mon, &date.tm_mday };
-  int c, i;
-  int status = EXIT_SUCCESS;
+  int c;
+  bool success;
 
   dt_ptrs.tm_year = &date.tm_year;
   dt_ptrs.tm_mon = &date.tm_mon;
   dt_ptrs.tm_mday = &date.tm_mday;
 
+  date.tm_year = 0;
   date.tm_mon = date.tm_mday = 1;
   date.tm_wday = date.tm_yday = -1;
 
@@ -198,31 +195,40 @@ main (int argc, char **argv)
 
   /* Set each parameter of date for the value specified to arguments
      but year must be specified. */
-  for (i = 0; i < argc; i++)
+  const struct tmint_prop dt_props[] =
+    {
+      { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
+      { 0, INT_MIN + 1, INT_MAX, 0, '\0' },
+      { 0, INT_MIN, INT_MAX, 0, '\0' }
+    };
+  int *dt_valp[] = { &date.tm_year, &date.tm_mon, &date.tm_mday };
+  int i = 0;
+  do
     {
       char *endptr;
-      int set_num = sscantmintp (*argv, &dt_props[i], &dt_valp[i], &endptr);
+      int set_num = sscantmintp (*argv, dt_props + i, dt_valp + i, &endptr);
       if (set_num < 0)
         error (EXIT_FAILURE, 0, "invalid date value %s", *argv);
       else if (set_num == 0 || *endptr != '\0')
         usage (EXIT_FAILURE);
       argv++;
     }
+  while (++i < argc);
 
   date.tm_year -= TM_YEAR_BASE;
   date.tm_mon--;
 
-  if (! adjustday (&date))
+  success = adjustday (&date);
+
+  if (!success)
     {
       date.tm_year = - TM_YEAR_BASE;
       date.tm_mon = -1;
       date.tm_mday = 0;
-
-      status = EXIT_FAILURE;
     }
 
   printtm (&dt_fmt, &dt_ptrs);
 
-  return status;
+  return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 #endif

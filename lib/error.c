@@ -28,10 +28,53 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef _
+# define _(String) String
+#endif
+
+#ifdef FREE
+extern LPWSTR *wargv;
+#endif
+
 /* The calling program should define program_name and set it to the
    name of the executing program.  */
 extern char *program_name;
 
+/* Print the system error message corresponding to ERRNUM.  */
+static void
+print_errno_message (int errnum)
+{
+  char const *s;
+
+#ifdef USE_TM_CYGWIN
+  char errbuf[1024];
+
+  if (strerror_r (errnum, errbuf, sizeof errbuf) == 0)
+    s = errbuf;
+#else
+  LPVOID lpMsgBuf = NULL;
+
+  if (FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                     FORMAT_MESSAGE_FROM_SYSTEM |
+                     FORMAT_MESSAGE_IGNORE_INSERTS,
+                     NULL, (DWORD)errnum,
+                     MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
+                     (LPTSTR)&lpMsgBuf, 0, NULL))
+    s = (char const *)lpMsgBuf;
+#endif
+  else
+    s = 0;
+
+  if (! s)
+    s = _("Unknown system error");
+
+  fprintf (stderr, ": %s", s);
+
+#ifndef USE_TM_CYGWIN
+  if (lpMsgBuf)
+    LocalFree (lpMsgBuf);
+#endif
+}
 
 /* Print the program name and error message MESSAGE, which is a printf-style
    format string with optional args.
@@ -50,29 +93,16 @@ error (int status, int errnum, const char *message, ...)
   va_end (args);
 
   if (errnum)
-    {
-      LPVOID lpMsgBuf;
-      if (FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                         FORMAT_MESSAGE_FROM_SYSTEM |
-                         FORMAT_MESSAGE_IGNORE_INSERTS,
-                         NULL, (DWORD)errnum,
-                         MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
-                         (LPTSTR)&lpMsgBuf, 0, NULL))
-        {
-          fprintf (stderr, ": %s", (char *)lpMsgBuf);
-          LocalFree (lpMsgBuf);
-        }
-      else
-        {
-          fprintf (stderr, "\n");
-        }
-    }
-  else
-    {
-      fprintf (stderr, "\n");
-    }
+    print_errno_message (errnum);
+  fputc ('\n', stderr);
 
   fflush (stderr);
   if (status)
-    exit (status);
+    {
+#ifdef FREE
+      if (wargv)
+        LocalFree (wargv);
+#endif
+      exit (status);
+    }
 }

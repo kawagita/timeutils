@@ -1,11 +1,14 @@
-GCC=gcc
 CC=i686-w64-mingw32-gcc
-CFLAGS=-std=c99 -O2 -Wformat -Werror
+GCC=gcc
+CFLAGS=-std=c11 -O2 -Wformat -Werror
+GFLAGS=-std=gnu11 -O2 -Wformat -Werror
 
 ADJUSTDAY_OBJS=adjusttm.o error.o intoverflow.o leapdays.o printtm.o \
                sscantmint.o weekday.o yeardays.o
 
-GETTIME_OBJS=ft2secns.o printtm.o timeoverflow.o yeardays.o
+GETFT_OBJS=ft2secns.o printtm.o timeoverflow.o toftval.o yeardays.o
+
+GETTIME_OBJS=ft2secns.o printtm.o timeoverflow.o toftval.o yeardays.o
 
 LEAPDAYS_OBJS=error.o intoverflow.o printtm.o sscantmint.o
 
@@ -21,7 +24,16 @@ MKTIME_OBJS=error.o intoverflow.o printtm.o sscantmint.o yeardays.o
 %_test.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DTEST -o $@ -c $<
 
+getft_test.o : getft.c
+	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DTEST -DUNICODE -o $@ -c $<
+
+error_free.o : error.c
+	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DFREE -o $@ -c $<
+
 libadjustday.a: $(ADJUSTDAY_OBJS)
+	$(AR) rcs $@ $^
+
+libgetft.a: $(GETFT_OBJS) error_free.o
 	$(AR) rcs $@ $^
 
 libgettime.a: $(GETTIME_OBJS)
@@ -38,10 +50,13 @@ libmktime.a: $(MKTIME_OBJS) adjustday.o adjusttm.o adjusttz.o imaxoverflow.o lea
 
 # Rules compiling for Cygwin to use localtime_r or mkfile function
 %_cygwin.o : %.c
-	$(GCC) $(CFLAGS) -DUSE_TM_CYGWIN -o $@ -c $<
+	$(GCC) $(GFLAGS) -DUSE_TM_CYGWIN -o $@ -c $<
 
 %_cygtest.o : %.c
-	$(GCC) $(CFLAGS) -DUSE_TM_CYGWIN -DTEST -o $@ -c $<
+	$(GCC) $(GFLAGS) -DUSE_TM_CYGWIN -DTEST -o $@ -c $<
+
+libcyggetft.a: $(patsubst %.o,%_cygwin.o,$(GETFT_OBJS)) error_cygwin.o secns2ft_cygwin.o
+	$(AR) rcs $@ $^
 
 libcyggettime.a: $(patsubst %.o,%_cygwin.o,$(GETTIME_OBJS)) secns2ft_cygwin.o
 	$(AR) rcs $@ $^

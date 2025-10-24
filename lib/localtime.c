@@ -17,22 +17,25 @@
 
 #include "config.h"
 
-#include <windows.h>
+#ifndef USE_TM_CYGWIN
+# include <windows.h>
+#endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "intoverflow.h"
-#include "timeoverflow.h"
-#include "wintm.h"
-
 #ifndef USE_TM_WRAPPER
-# include <limits.h>
 # include <time.h>
 
 # ifdef USE_TM_MSVCRT
 long int tm_diff (struct tm const *a, struct tm const *b);
 # endif
-#else  /* USE_TM_WRAPPER */
+#endif
+
+#include "intoverflow.h"
+#include "timeoverflow.h"
+#include "wintm.h"
+
+#ifdef USE_TM_WRAPPER
 # include "adjusttm.h"
 # include "adjusttz.h"
 #endif
@@ -164,7 +167,7 @@ usage (int status)
   fputs ("Usage: localtime [OPTION]... [-]SECONDS[.nnnnnnn]\n", stdout);
   fputs ("\
 Convert SECONDS since 1970-01-01 00:00 UTC into parameters of time\n\
-in local timezone. Display those time if conversion is performed,\n\
+in local time zone. Display those time if conversion is performed,\n\
 otherwise, \"0000-00-00 00:00:00\".\n\
 \n\
 Options:\n\
@@ -180,12 +183,6 @@ Options:\n\
   exit (status);
 }
 
-static const struct tmimax_prop sec_props[] =
-{
-  { 0, INTMAX_MIN, INTMAX_MAX, 0, '.' },
-  { 0, INTMAX_MIN, INTMAX_MAX, FILETIME_FRAC_DIGITS, '\0' },
-};
-
 int
 main (int argc, char **argv)
 {
@@ -196,9 +193,7 @@ main (int argc, char **argv)
   intmax_t *sec_valp[] = { &sec_values[0], &sec_values[1] };
   int nsec = -1;
   int c;
-  int status = EXIT_FAILURE;
-  int set_num;
-  char *endptr;
+  bool success;
 
   tm_ptrs.tm_year = &tm.tm_year;
   tm_ptrs.tm_mon = &tm.tm_mon;
@@ -258,23 +253,26 @@ main (int argc, char **argv)
   if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
-  set_num = sscantmimaxp (*argv, sec_props, sec_valp, &endptr);
+  const struct tmimax_prop sec_props[] =
+    {
+      { 0, INTMAX_MIN, INTMAX_MAX, 0, '.' },
+      { 0, INTMAX_MIN, INTMAX_MAX, FT_FRAC_DIGITS, '\0' },
+    };
+  char *endptr;
+  int set_num = sscantmimaxp (*argv, sec_props, sec_valp, &endptr);
   if (set_num < 0
       || (set_num > 1 && INT_ADD_WRAPV (0, sec_values[1], &nsec)))
     error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
   else if (set_num == 0 || *endptr != '\0')
     usage (EXIT_FAILURE);
 
-  if (localtimew (&sec_values[0], &tm))
-    {
-      if (nsec >= 0)
-        tm_ptrs.tm_frac = &nsec;
+  success = localtimew (&sec_values[0], &tm);
 
-      status = EXIT_SUCCESS;
-    }
+  if (success && nsec >= 0)
+    tm_ptrs.tm_frac = &nsec;
 
   printtm (&tm_fmt, &tm_ptrs);
 
-  return status;
+  return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 #endif

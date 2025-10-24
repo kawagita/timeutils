@@ -20,8 +20,12 @@
 #ifndef _ERROR_H
 #define _ERROR_H 1
 
-/* Error number function.  */
-#define ERRNO() GetLastError ()
+/* Return the number of an error that occured the most recently  */
+#ifdef USE_TM_CYGWIN
+# define ERRNO() errno
+#else
+# define ERRNO() GetLastError ()
+#endif
 
 /* Print a message with `fprintf (stderr, FORMAT, ...)';
    if ERRNUM is nonzero, follow it with ": " and strerror (ERRNUM).

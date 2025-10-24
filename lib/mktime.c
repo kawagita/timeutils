@@ -17,11 +17,11 @@
 
 #include "config.h"
 
-#include <windows.h>
+#ifndef USE_TM_CYGWIN
+# include <windows.h>
+#endif
 #include <stdbool.h>
 #include <stdint.h>
-
-#include "wintm.h"
 
 #ifndef USE_TM_WRAPPER
 # include <time.h>
@@ -29,7 +29,11 @@
 # ifdef USE_TM_MSVCRT
 long int tm_diff (struct tm const *a, struct tm const *b);
 # endif
-#else  /* USE_TM_WRAPPER */
+#endif
+
+#include "wintm.h"
+
+#ifdef USE_TM_WRAPPER
 # include "adjusttm.h"
 # include "adjusttz.h"
 # include "imaxoverflow.h"
@@ -254,12 +258,6 @@ Options:\n\
   exit (status);
 }
 
-static const struct tmint_prop tm_props[] =
-{
-  { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
-  { 0, INT_MIN + 1, INT_MAX, 0, '\0' }
-};
-
 int
 main (int argc, char **argv)
 {
@@ -267,18 +265,14 @@ main (int argc, char **argv)
   struct tmout_ptrs tm_ptrs = { NULL };
   TM tm;
   intmax_t seconds;
-  int *tm_valp[] =
-    {
-      &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-      &tm.tm_hour, &tm.tm_min, &tm.tm_sec
-    };
-  int c, i;
+  int c;
   int status = EXIT_SUCCESS;
   bool only_seconds_set = false;
   bool weekday_set = false;
   bool yearday_set = false;
   bool timezone_set = false;
 
+  tm.tm_year = 0;
   tm.tm_mon = tm.tm_mday = 1;
   tm.tm_wday = tm.tm_yday = -1;
   tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
@@ -369,7 +363,18 @@ main (int argc, char **argv)
 
   /* Set each parameter of time for the value specified to arguments
      but year must be specified. */
-  for (i = 0; i < argc; i++)
+  const struct tmint_prop tm_props[] =
+    {
+      { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
+      { 0, INT_MIN + 1, INT_MAX, 0, '\0' }
+    };
+  int *tm_valp[] =
+    {
+      &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+      &tm.tm_hour, &tm.tm_min, &tm.tm_sec
+    };
+  int i = 0;
+  do
     {
       char *endptr;
       int set_num;
@@ -383,6 +388,7 @@ main (int argc, char **argv)
         usage (EXIT_FAILURE);
       argv++;
     }
+  while (++i < argc);
 
   tm.tm_year -= TM_YEAR_BASE;
   tm.tm_mon--;

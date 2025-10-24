@@ -3,15 +3,19 @@ timeutils
 
 GNU touch コマンドを MinGW でビルドして Windows で動くようにする予定です。まだ開発途中ですが、少しずつソースを公開していきます。これらをビルドするには Windows 上に Cygwin 1.7.35 以降と gcc、mingw64-i686 等の開発用パッケージが必要になります。
 
-2025-W42 現在、関数のテスト用に作成した adjustday、gettime、leapdays、localtime、mktime コマンドが使えます。localtime と mktime は同名の POSIX 関数を自作しました。関数内では `#define` で Cygwin と MSVCRT（msvcrt.dll）の関数をラップした部分を分けてあります。それぞれ、`make cygwin`、`make msvcrt` で cygwin、msvcrt ディレクトリ配下にコマンドが作成され、同じ引数を使って動作の違いを確かめられます。
+2025-W43 現在、関数のテスト用に作成した adjustday、getft、gettime、leapdays、localtime、mktime コマンドが使えます。localtime と mktime は同名の POSIX 関数を自作しました。関数内では `#define` で Cygwin と MSVCRT（msvcrt.dll）の関数をラップした部分を分けてあります。それぞれ、`make cygwin`、`make msvcrt` で cygwin、msvcrt ディレクトリ配下にコマンドが作成され、同じ引数を使って動作の違いを確かめられます。
 
 #### adjustday
 
 コマンドの引数に年、月、日（負の値も可能）を指定すると、月と日を正しい範囲に修正して結果を表示します。Cygwin と MSVCRT にはこのコマンドがありません。
 
+#### getft
+
+コマンドの引数に指定したファイルの時刻を 1601-01-01 00:00 UTC からの 100 ナノ秒、または、1970-01-01 00:00 UTC からの秒で表示します。MSVCRT にはこのコマンドがありません。
+
 #### gettime
 
-現在の時刻を 1970-01-01 00:00 UTC からの秒数で表示します。`-N` オプションを指定すると、100 ナノ秒単位の小数部分を表示します。MSVCRT にはこのコマンドがありません。
+現在の時刻を 1601-01-01 00:00 UTC からの 100 ナノ秒、または、1970-01-01 00:00 UTC からの秒で表示します。`-N` オプションを指定すると、１秒未満の部分を切り捨てて表示します。MSVCRT にはこのコマンドがありません。
 
 #### leapdays
 
