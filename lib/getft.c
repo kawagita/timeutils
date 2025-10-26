@@ -28,6 +28,7 @@
 # include <time.h>
 #endif
 
+#include "ft.h"
 #include "wintm.h"
 
 /* Get file times for the specified struct file into FT and set the flag
@@ -71,7 +72,6 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
 }
 
 #ifdef TEST
-# include <limits.h>
 # include <stdio.h>
 # include <unistd.h>
 

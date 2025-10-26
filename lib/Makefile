@@ -13,7 +13,7 @@ GETTIME_OBJS=ft2secns.o printtm.o timeoverflow.o toftval.o yeardays.o
 LEAPDAYS_OBJS=error.o intoverflow.o printtm.o sscantmint.o
 
 LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o sscantmimax.o \
-               timeoverflow.o yeardays.o
+               sscantmint.o timeoverflow.o yeardays.o
 
 MKTIME_OBJS=error.o intoverflow.o printtm.o sscantmint.o yeardays.o
 

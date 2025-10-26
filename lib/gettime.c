@@ -1,4 +1,4 @@
-/* Get the current time by the system clock in NTFS
+/* Get the current time from the system clock in NTFS
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@
 # include <time.h>
 #endif
 
-#include "wintm.h"
+#include "ft.h"
 
 /* Get the current time in NTFS into *FT. Return true if conversion is
    performed, otherwise, false.  */

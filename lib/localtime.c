@@ -31,6 +31,7 @@ long int tm_diff (struct tm const *a, struct tm const *b);
 # endif
 #endif
 
+#include "ft.h"
 #include "intoverflow.h"
 #include "timeoverflow.h"
 #include "wintm.h"
@@ -150,12 +151,12 @@ localtimew (const intmax_t *seconds, TM *tm)
 }
 
 #ifdef TEST
+# include <limits.h>
 # include <stdio.h>
 # include <unistd.h>
 
 # include "error.h"
 # include "exit.h"
-# include "imaxoverflow.h"
 # include "printtm.h"
 # include "sscantm.h"
 
@@ -189,8 +190,7 @@ main (int argc, char **argv)
   struct tmout_fmt tm_fmt = { false };
   struct tmout_ptrs tm_ptrs = { NULL };
   TM tm;
-  intmax_t sec_values[2];
-  intmax_t *sec_valp[] = { &sec_values[0], &sec_values[1] };
+  intmax_t seconds;
   int nsec = -1;
   int c;
   bool success;
@@ -253,20 +253,28 @@ main (int argc, char **argv)
   if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
-  const struct tmimax_prop sec_props[] =
+  char *endptr = NULL;
+  int set_num = sscantmimax (*argv, &seconds, &endptr);
+
+  /* Set the value following to seconds and a comma into nanoseconds
+     but not converted by localtimew function. */
+  if (endptr != NULL && *endptr == '.')
     {
-      { 0, INTMAX_MIN, INTMAX_MAX, 0, '.' },
-      { 0, INTMAX_MIN, INTMAX_MAX, FT_FRAC_DIGITS, '\0' },
-    };
-  char *endptr;
-  int set_num = sscantmimaxp (*argv, sec_props, sec_valp, &endptr);
-  if (set_num < 0
-      || (set_num > 1 && INT_ADD_WRAPV (0, sec_values[1], &nsec)))
+      const struct tmint_prop nsec_prop[] =
+        {
+          { seconds < 0 ? -1 : 1, INT_MIN, INT_MAX, FT_FRAC_DIGITS, '\0' }
+        };
+      int *nsec_valp[] = { &nsec };
+
+      set_num = sscantmintp (endptr + 1, nsec_prop, nsec_valp, &endptr);
+    }
+
+  if (set_num < 0)
     error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
   else if (set_num == 0 || *endptr != '\0')
     usage (EXIT_FAILURE);
 
-  success = localtimew (&sec_values[0], &tm);
+  success = localtimew (&seconds, &tm);
 
   if (success && nsec >= 0)
     tm_ptrs.tm_frac = &nsec;

@@ -27,15 +27,15 @@
 # include <time.h>
 #endif
 
+#include "ft.h"
 #include "timeoverflow.h"
-#include "wintm.h"
 
 /* Convert the specified file time to seconds and 100 nanoseconds since Unix
    epoch. Set its value into *SECONDS but nanoseconds into *NSEC unless not
    NULL. Return true if conversion is performed, otherwise, false.  */
 
 bool
-ft2secns(const FT *ft, intmax_t *seconds, int *nsec)
+ft2secns (const FT *ft, intmax_t *seconds, int *nsec)
 {
   intmax_t ft_seconds;
 

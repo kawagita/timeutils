@@ -25,8 +25,8 @@
 # include <time.h>
 #endif
 
+#include "ft.h"
 #include "timeoverflow.h"
-#include "wintm.h"
 
 /* Convert the specified seconds and 100 nanoseconds since Unix epoch
    to file time and set its value into *FT unless not NULL. Return 100

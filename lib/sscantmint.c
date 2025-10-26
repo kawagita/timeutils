@@ -139,9 +139,9 @@ sscantmintp (const char *str, const struct tmint_prop *tm_props,
 
               /* Decrement the value of integer part and change the sign
                  of fractional part by the subtraction from 1.0. */
-              if (set_num > 0
-                  && (INT_SUBTRACT_WRAPV (precision, value, &value)
-                      || INT_SUBTRACT_WRAPV (
+              if (INT_SUBTRACT_WRAPV (precision, value, &value)
+                  || (set_num > 0
+                      && INT_SUBTRACT_WRAPV (
                            *tm_valp[set_num - 1], 1, tm_valp[set_num - 1])))
                 return -1;
             }

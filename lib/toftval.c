@@ -27,7 +27,7 @@
 # include <time.h>
 #endif
 
-#include "wintm.h"
+#include "ft.h"
 
 extern intmax_t secns2ftval (intmax_t seconds, int nsec, FT *ft);
 

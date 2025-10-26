@@ -139,9 +139,9 @@ sscantmimaxp (const char *str, const struct tmimax_prop *tm_props,
 
               /* Decrement the value of integer part and change the sign
                  of fractional part by the subtraction from 1.0. */
-              if (set_num > 0
-                  && (IMAX_SUBTRACT_WRAPV (precision, value, &value)
-                      || IMAX_SUBTRACT_WRAPV (
+              if (IMAX_SUBTRACT_WRAPV (precision, value, &value)
+                  || (set_num > 0
+                      && IMAX_SUBTRACT_WRAPV (
                            *tm_valp[set_num - 1], 1, tm_valp[set_num - 1])))
                 return -1;
             }

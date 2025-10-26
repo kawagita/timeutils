@@ -207,7 +207,7 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
   /* Output the date, starting with the year. */
   if (tm_ptrs->tm_year)
     {
-      int year = *tm_ptrs->tm_year + TM_YEAR_BASE;
+      int year = *tm_ptrs->tm_year + (relative ? 0 : TM_YEAR_BASE);
       int year_leading_char = 0;
       int date_delim = '-';
       int date_width = 0;
@@ -281,11 +281,15 @@ printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
         }
       else if (tm_ptrs->tm_mon)  /* Month and day */
         {
-          if (date_width >= 4)
-             date_width = 2;
+          int month = *tm_ptrs->tm_mon;
 
-          tmout_size += printdatetime (
-                          *tm_ptrs->tm_mon + 1, date_delim, date_width);
+          if (!relative)
+            {
+              month++;
+              date_width = 2;
+            }
+
+          tmout_size += printdatetime (month, date_delim, date_width);
 
           if (tm_ptrs->tm_mday)
             tmout_size += printdatetime (
