@@ -1,4 +1,4 @@
-/* Convert file time to seconds and nanoseconds since Unix epoch in NTFS
+/* Convert file time in NTFS to seconds and nanoseconds since Unix epoch
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -17,61 +17,59 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifdef USE_TM_CYGWIN
+# include <time.h>
+#else
 # include <windows.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef USE_TM_CYGWIN
-# include <time.h>
-#endif
-
 #include "ft.h"
+#include "imaxoverflow.h"
 #include "timeoverflow.h"
 
-/* Convert the specified file time to seconds and 100 nanoseconds since Unix
-   epoch. Set its value into *SECONDS but nanoseconds into *NSEC unless not
-   NULL. Return true if conversion is performed, otherwise, false.  */
+/* Convert the specified file time to seconds since 1970-01-01 00:00 UTC
+   and 100 nanoseconds less than a second. Set its two values into *SECONDS
+   and *NSEC and return true if conversion is performed, otherwise, return
+   false.  */
 
 bool
-ft2secns (const FT *ft, intmax_t *seconds, int *nsec)
+ft2sec (const FT *ft, intmax_t *seconds, int *nsec)
 {
   intmax_t ft_seconds;
+  int ft_nsec;
 
 #ifdef USE_TM_CYGWIN
   ft_seconds = ft->tv_sec;
+  ft_nsec = ft->tv_nsec / 100;
 #else
-  LARGE_INTEGER ft_val;
+  LARGE_INTEGER ft_large = (LARGE_INTEGER) { .HighPart = ft->dwHighDateTime,
+                                             .LowPart = ft->dwLowDateTime };
+  intmax_t ft_val;
 
-  ft_val.HighPart = ft->dwHighDateTime;
-  ft_val.LowPart = ft->dwLowDateTime;
+  if (IMAX_SUBTRACT_WRAPV (ft_large.QuadPart, FT_UNIXEPOCH_NSEC, &ft_val))
+    return false;
 
-  ft_seconds = ft_val.QuadPart / FT_FRAC_PRECISION - FT_UNIXEPOCH_SECONDS;
+  ft_seconds = ft_val / FT_NSEC_PRECISION;
+  ft_nsec = ft_val % FT_NSEC_PRECISION;
+
+  /* If nanoseconds is negative, add 1 to its value and decrement seconds,
+     because tv_nsec is always a positive offset even if tv_sec is negative
+     in the timespec convention and this program is corresponding to it. */
+  if (ft_val < 0)
+    {
+      if (IMAX_SUBTRACT_WRAPV (ft_seconds, 1, &ft_seconds))
+        return false;
+
+      ft_nsec += FT_NSEC_PRECISION;
+    }
 #endif
 
   if (! timew_overflow (ft_seconds))
     {
       *seconds = ft_seconds;
-
-      /* Set the value of 100 nanoseconds into *NSEC if not NULL. */
-      if (nsec)
-        {
-          long ft_nsec;
-
-#ifdef USE_TM_CYGWIN
-          ft_nsec = ft->tv_nsec;
-
-          while (ft_nsec >= FT_FRAC_PRECISION)
-            ft_nsec /= 10;
-#else
-          ft_nsec = ft_val.QuadPart % FT_FRAC_PRECISION;
-#endif
-          if (ft_nsec < 0)
-            ft_nsec = - ft_nsec;
-
-          *nsec = ft_nsec;
-        }
+      *nsec = ft_nsec;
 
       return true;
     }

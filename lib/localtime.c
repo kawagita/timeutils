@@ -131,7 +131,7 @@ localtimew (const intmax_t *seconds, TM *tm)
               || ! adjustday (&date))
             return NULL;
 
-          date.tm_wday = ((adj_day % 7) + date.tm_wday + 7) % 7;
+          date.tm_wday = WEEKDAY_FROM (date.tm_wday, adj_day);
         }
     }
 
@@ -151,74 +151,60 @@ localtimew (const intmax_t *seconds, TM *tm)
 }
 
 #ifdef TEST
-# include <limits.h>
 # include <stdio.h>
 # include <unistd.h>
 
+# include "cmdtmio.h"
 # include "error.h"
 # include "exit.h"
-# include "printtm.h"
-# include "sscantm.h"
 
 char *program_name = "localtime";
 
 static void
 usage (int status)
 {
-  fputs ("Usage: localtime [OPTION]... [-]SECONDS[.nnnnnnn]\n", stdout);
-  fputs ("\
+  printusage ("localtime", " [-]SECONDS[.nnnnnnn]\n\
 Convert SECONDS since 1970-01-01 00:00 UTC into parameters of time\n\
 in local time zone. Display those time if conversion is performed,\n\
-otherwise, \"0000-00-00 00:00:00\".\n\
+otherwise, \"-0001-00-00 00:00:00\".\n\
 \n\
 Options:\n\
   -a   output time with week day name and time zone\n\
   -I   output time in ISO 8601 format\n\
   -J   output date in Japanese era name and number\n\
-  -n   don't output the trailing newline\n\
   -w   output time with week day name\n\
   -W   output time with week number and day\n\
   -Y   output time with year day\n\
-  -z   output time with time zone\n\
-", stdout);
+  -z   output time with time zone\
+", true, 0);
   exit (status);
 }
 
 int
 main (int argc, char **argv)
 {
-  struct tmout_fmt tm_fmt = { false };
-  struct tmout_ptrs tm_ptrs = { NULL };
-  TM tm;
+  TM tm = (TM) { .tm_year = -1, .tm_wday = -1, .tm_yday = -1, .tm_isdst = -1 };
+  int *dates[] = { &tm.tm_year, &tm.tm_mon, &tm.tm_mday };
+  int *times[] = { &tm.tm_hour, &tm.tm_min, &tm.tm_sec };
   intmax_t seconds;
-  int nsec = -1;
+  int nsec = 0;
   int c;
-  bool success;
+  int status = EXIT_FAILURE;
+  bool weekday_output = false;
+  bool yearday_output = false;
+  bool tz_output = false;
+  struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .elapse = &seconds,
+                                              .frac_val = &nsec };
+  struct tm_fmt tm_fmt = { false };
 
-  tm_ptrs.tm_year = &tm.tm_year;
-  tm_ptrs.tm_mon = &tm.tm_mon;
-  tm_ptrs.tm_mday = &tm.tm_mday;
-  tm_ptrs.tm_hour = &tm.tm_hour;
-  tm_ptrs.tm_min = &tm.tm_min;
-  tm_ptrs.tm_sec = &tm.tm_sec;
-
-  tm.tm_year = - TM_YEAR_BASE;
-  tm.tm_mon = -1;
-  tm.tm_mday = 0;
-  tm.tm_wday = tm.tm_yday = -1;
-  tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-  tm.tm_isdst = -1;
-  tm.tm_gmtoff = 0;
-
-  while ((c = getopt (argc, argv, ":aIJnwWYz")) != -1)
+  while ((c = getopt (argc, argv, ":aIJwWYz")) != -1)
     {
       switch (c)
         {
         case 'a':
           tm_fmt.weekday_name = true;
-          tm_ptrs.tm_wday = &tm.tm_wday;
-          tm_ptrs.tm_gmtoff = &tm.tm_gmtoff;
-          tm_ptrs.tm_isdst = &tm.tm_isdst;
+          weekday_output = true;
+          tz_output = true;
           break;
         case 'I':
           tm_fmt.iso8601 = true;
@@ -226,22 +212,18 @@ main (int argc, char **argv)
         case 'J':
           tm_fmt.japanese = true;
           break;
-        case 'n':
-          tm_fmt.no_newline = true;
-          break;
         case 'w':
           tm_fmt.weekday_name = true;
-          tm_ptrs.tm_wday = &tm.tm_wday;
+          weekday_output = true;
           break;
         case 'W':
           tm_fmt.week_numbering = true;
-          tm_ptrs.tm_wday = &tm.tm_wday;
+          weekday_output = true;
         case 'Y':
-          tm_ptrs.tm_yday = &tm.tm_yday;
+          yearday_output = true;
           break;
         case 'z':
-          tm_ptrs.tm_gmtoff = &tm.tm_gmtoff;
-          tm_ptrs.tm_isdst = &tm.tm_isdst;
+          tz_output = true;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -253,34 +235,34 @@ main (int argc, char **argv)
   if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
+  /* Set the argument into seconds and its fractional part. */
   char *endptr = NULL;
-  int set_num = sscantmimax (*argv, &seconds, &endptr);
-
-  /* Set the value following to seconds and a comma into nanoseconds
-     but not converted by localtimew function. */
-  if (endptr != NULL && *endptr == '.')
-    {
-      const struct tmint_prop nsec_prop[] =
-        {
-          { seconds < 0 ? -1 : 1, INT_MIN, INT_MAX, FT_FRAC_DIGITS, '\0' }
-        };
-      int *nsec_valp[] = { &nsec };
-
-      set_num = sscantmintp (endptr + 1, nsec_prop, nsec_valp, &endptr);
-    }
-
+  int set_num = sscantm (*argv, &tm_ptrs, &endptr);
   if (set_num < 0)
     error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
   else if (set_num == 0 || *endptr != '\0')
     usage (EXIT_FAILURE);
 
-  success = localtimew (&seconds, &tm);
+  tm_ptrs = (struct tm_ptrs) { .dates = dates,
+                               .times = times,
+                               .weekday = weekday_output ? &tm.tm_wday : NULL,
+                               .yearday = yearday_output ? &tm.tm_yday : NULL,
+                               .tz_offset = tz_output ? &tm.tm_gmtoff : NULL,
+                               .tz_isdst = tz_output ? &tm.tm_isdst : NULL };
 
-  if (success && nsec >= 0)
-    tm_ptrs.tm_frac = &nsec;
+  if (localtimew (&seconds, &tm))
+    {
+      if (set_num >= 2)
+        tm_ptrs.frac_val = &nsec;
+
+      tm.tm_year += TM_YEAR_BASE;
+      tm.tm_mon++;
+
+      status = EXIT_SUCCESS;
+    }
 
   printtm (&tm_fmt, &tm_ptrs);
 
-  return success ? EXIT_SUCCESS : EXIT_FAILURE;
+  return status;
 }
 #endif

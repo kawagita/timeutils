@@ -22,6 +22,8 @@
 
 /* Return the number of an error that occured the most recently  */
 #ifdef USE_TM_CYGWIN
+# include <errno.h>
+
 # define ERRNO() errno
 #else
 # define ERRNO() GetLastError ()

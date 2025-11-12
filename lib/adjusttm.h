@@ -58,6 +58,10 @@ int yeardays (bool has_noleapday, int months);
 
 int leapdays (int from_year, int to_year);
 
+/* Return the week day elapsed from the specified week day  */
+
+#define WEEKDAY_FROM(wday,yday) (((wday) + (int)((yday) % 7) + 7) % 7)
+
 /* Return the week day for the specified day in YEAR.  */
 
 int weekday (int year, int yday);

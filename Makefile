@@ -2,21 +2,21 @@ GCC=gcc
 LD=i686-w64-mingw32-gcc
 LDFLAGS=-mconsole
 
-all: adjustday getft gettime leapdays localtime mktime
+all: adjustday currentft getft leapdays localtime mktime modifysec
 
-cygwin: cyggetft cyggettime cyglocaltime cygmktime
+cygwin: cygcurrentft cyggetft cyglocaltime cygmktime cygmodifysec
 
 msvcrt: mslocaltime msmktime
 
-.PHONY: adjustday getft gettime leapdays localtime mktime
+.PHONY: adjustday currentft getft leapdays localtime mktime modifysec
 
-adjustday getft gettime leapdays localtime mktime:
+adjustday currentft getft leapdays localtime mktime modifysec:
 	(cd lib && $(MAKE) $@_test.o lib$@.a)
 	$(LD) $(LDFLAGS) -o $@ lib/$@_test.o lib/lib$@.a
 
-.PHONY: cyggetft cyggettime cyglocaltime cygmktime
+.PHONY: cygcurrentft cyggetft cyglocaltime cygmktime cygmodifysec
 
-cyggetft cyggettime cyglocaltime cygmktime:
+cygcurrentft cyggetft cyglocaltime cygmktime cygmodifysec:
 	(cd lib && $(MAKE) $(subst cyg,,$@)_cygtest.o lib$@.a)
 	mkdir -p cygwin
 	$(GCC) -o cygwin/$(subst cyg,,$@) lib/$(subst cyg,,$@)_cygtest.o lib/lib$@.a

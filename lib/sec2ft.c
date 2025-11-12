@@ -17,66 +17,78 @@
 
 #include "config.h"
 
-#include <windows.h>
-#include <stdbool.h>
-#include <stdint.h>
-
 #ifdef USE_TM_CYGWIN
 # include <time.h>
+#else
+# include <windows.h>
 #endif
+#include <stdbool.h>
+#include <stdint.h>
 
 #include "ft.h"
 #include "timeoverflow.h"
 
-/* Convert the specified seconds and 100 nanoseconds since Unix epoch
-   to file time and set its value into *FT unless not NULL. Return 100
-   nanoseconds since 1601-01-01 00:00 UTC of file time if NSEC is more
-   than or equal to 0 and conversion is performed, otherwise, 0.  */
+/* Convert the specified seconds since 1970-01-01 00:00 UTC and 100
+   nanoseconds less than a second to file time. Set its value into *FT
+   unless not NULL. Return true if NSEC is not less than 0 and conversion
+   is performed, otherwise, false.  */
 
 intmax_t
-secns2ftval (intmax_t seconds, int nsec, FT *ft)
+sec2ftval (intmax_t seconds, int nsec, FT *ft)
 {
   if (nsec >= 0 && ! timew_overflow (seconds))
     {
-      LARGE_INTEGER ft_val;
+      /* Subtract 1 from nanoseconds and increment seconds because tv_nsec
+         is always a positive offset even if tv_sec is negative in
+         the timespec convention and this program is corresponding to it. */
+      intmax_t ft_seconds = seconds;
+      int ft_nsec = nsec;
+      if (ft_seconds < 0 && ft_nsec > 0)
+        {
+          ft_seconds++;
+          ft_nsec -= FT_NSEC_PRECISION;
+        }
 
-      while (nsec >= FT_FRAC_PRECISION)
-        nsec /= 10;
-
-      ft_val.QuadPart = ((LONGLONG)seconds + FT_UNIXEPOCH_SECONDS)
-                        * FT_FRAC_PRECISION + nsec;
+      intmax_t ft_val = ft_seconds * FT_NSEC_PRECISION + ft_nsec
+                        + FT_UNIXEPOCH_NSEC;
 
       if (ft)
         {
 #ifdef USE_TM_CYGWIN
           ft->tv_sec = seconds;
-          ft->tv_nsec = nsec;
+          ft->tv_nsec = nsec * 100;
 #else
-          ft->dwHighDateTime = ft_val.HighPart;
-          ft->dwLowDateTime = ft_val.LowPart;
+          LARGE_INTEGER ft_large = (LARGE_INTEGER) { .QuadPart = ft_val };
+
+          ft->dwHighDateTime = ft_large.HighPart;
+          ft->dwLowDateTime = ft_large.LowPart;
 #endif
         }
 
-      return ft_val.QuadPart;
+      return ft_val;
     }
 
   return 0;
 }
 
-/* Convert the specified seconds and 100 nanoseconds since Unix epoch to
-   file time and set its value into *FT. Return true if NSEC is more than
-   or equal to 0 and conversion is performed, otherwise, false.  */
+/* Convert the specified seconds since 1970-01-01 00:00 UTC and 100
+   nanoseconds less than a second to file time. Set its value into *FT
+   and return true if NSEC is not less than 0 and conversion is performed,
+   otherwise, return false.  */
 
 bool
-secns2ft (intmax_t seconds, int nsec, FT *ft)
+sec2ft (intmax_t seconds, int nsec, FT *ft)
 {
-  if (seconds || nsec)
-    return secns2ftval (seconds, nsec, ft) != 0L;
-
 #ifdef USE_TM_CYGWIN
-  ft->tv_sec = 0;
-  ft->tv_nsec = 0L;
+  if (nsec < 0 || timew_overflow (seconds))
+    return false;
+
+  ft->tv_sec = seconds;
+  ft->tv_nsec = nsec * 100;
 #else
+  if (seconds || nsec)
+    return sec2ftval (seconds, nsec, ft) != 0;
+
   ft->dwHighDateTime = ft->dwLowDateTime = 0;
 #endif
 

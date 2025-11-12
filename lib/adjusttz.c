@@ -35,7 +35,7 @@ static int
 transition_seconds (SYSTEMTIME *st, int y1st_wday, bool has_noleapday)
 {
   int trans_yday = yeardays (has_noleapday, st->wMonth - 1);
-  int trans_mday = ((st->wDayOfWeek - (trans_yday + y1st_wday)) % 7 + 7) % 7
+  int trans_mday = WEEKDAY_FROM (0, st->wDayOfWeek - (trans_yday + y1st_wday))
                    + (st->wDay - 1) * 7 + 1;
 
   if (trans_mday > ((has_noleapday || st->wMonth ^ 2)
@@ -90,7 +90,7 @@ adjusttz (struct lctm *tm, int trans_isdst)
       int isdst = tm->tm_isdst;
       intmax_t adj_min = 0;
 
-      if (tzinfo.DaylightDate.wYear > 0)  /* only occur one time */
+      if (tzinfo.DaylightDate.wYear > 0)  /* Only occur one time */
         {
           if (year != tzinfo.DaylightDate.wYear)
             {

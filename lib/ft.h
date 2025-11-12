@@ -1,4 +1,5 @@
-/* ft.h -- Definitions of file time in NTFS
+/* ft.h -- File time in NTFS, represented by 100 nanoseconds unit since
+           1601-01-01 00:00 UTC on Windows or struct timespec on Cygwin
 
    Copyright (C) 2025 Yoshinori Kawagita.
 
@@ -16,7 +17,7 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-/* The structure into which file time is set  */
+/* The structure into which file time is stored  */
 
 #ifdef USE_TM_CYGWIN
 typedef struct timespec FT;
@@ -24,32 +25,39 @@ typedef struct timespec FT;
 typedef FILETIME FT;
 #endif
 
-/* The precision and number of digits for a fractional second in file time  */
+/* The precision and number of digits for a nanosecond in file time  */
 
-#define FT_FRAC_PRECISION 10000000
-#define FT_FRAC_DIGITS    7
+#define FT_NSEC_PRECISION 10000000
+#define FT_NSEC_DIGITS    7
 
-/* Seconds to Unix epoch in file time  */
+/* 100 nanoseconds to 1970-01-01 00:00 UTC in file time  */
 
-#define FT_UNIXEPOCH_SECONDS 11644473600LL
+#define FT_UNIXEPOCH_NSEC 116444736000000000
 
-/* Return the value of 100-nanoseconds unit elapsed since 1601-01-01 00:00
-   UTC in FILETIME, converted from the specified file time. If conversion
-   is not performed, return 0.  */
+/* Get the current time on system clock as file time in NTFS. Set its value
+   into *FT and return true if successfull, otherwise, return false.  */
 
-intmax_t toftval (const FT *ft);
+bool currentft (FT *ft);
 
-/* Convert the specified file time to seconds and 100 nanoseconds since Unix
-   epoch. Set its value into *SECONDS but nanoseconds into *NSEC unless not
-   NULL. Return true if conversion is performed, otherwise, false.  */
+/* Return the value of 100 nanoseconds since 1601-01-01 00:00 UTC converted
+   from the specified file time, according to SEC_MODFLAG. If conversion is
+   not performed, return 0.  */
 
-bool ft2secns (const FT *ft, intmax_t *seconds, int *nsec);
+intmax_t toftval (const FT *ft, int sec_modflag);
 
-/* Convert the specified seconds and 100 nanoseconds since Unix epoch to
-   file time and set its value into *FT. Return true if NSEC is more than
-   or equal to 0 and conversion is performed, otherwise, false.  */
+/* Convert the specified file time to seconds since 1970-01-01 00:00 UTC
+   and 100 nanoseconds less than a second. Set its two values into *SECONDS
+   and *NSEC and return true if conversion is performed, otherwise, return
+   false.  */
 
-bool secns2ft (intmax_t seconds, int nsec, FT *ft);
+bool ft2sec (const FT *ft, intmax_t *seconds, int *nsec);
+
+/* Convert the specified seconds since 1970-01-01 00:00 UTC and 100
+   nanoseconds less than a second to file time. Set its value into *FT
+   and return true if NSEC is not less than 0 and conversion is performed,
+   otherwise, return false.  */
+
+bool sec2ft (intmax_t seconds, int nsec, FT *ft);
 
 /* The size or each index of file times, set in a file  */
 
@@ -69,20 +77,14 @@ struct file
 {
 #ifdef USE_TM_CYGWIN
   const char *name;
+  int fd;
 #else
   LPCWSTR name;
+  HANDLE hFile;
 #endif
   bool no_dereference;
   bool isdir;
 };
-
-/* The format to output the name of a file  */
-
-#ifdef USE_TM_CYGWIN
-# define PRIsNAME "s"
-#else
-# define PRIsNAME "ls"
-#endif
 
 /* Get file times for the specified struct file into FT and set the flag
    of a directory into the isdir member in *FT_FILE. If the no_dereference
@@ -90,3 +92,59 @@ struct file
    referenced by it. Return true if successfull, otherwise, false.  */
 
 bool getft (FT ft[FT_SIZE], struct file *ft_file);
+
+/* The change to file time  */
+
+typedef struct
+{
+  bool datetime_unset;  /* true if date and time is not set  */
+  bool date_set;        /* true if date is set  */
+
+  /* The date and time adapted to file time before the modification  */
+  int year;
+  int month;
+  int day;
+  int hour;
+  int minutes;
+  int seconds;
+  int ns;
+
+  int sec_modflag;
+
+  /* Positive or negative values to modify file time   */
+  int rel_year;
+  int rel_month;
+  int rel_day;
+  intmax_t rel_hour;
+  intmax_t rel_minutes;
+  intmax_t rel_seconds;
+  int rel_ns;
+
+  /* The value by which file time is changed to a week day  */
+  int day_number;
+  intmax_t day_ordinal;
+
+  /* The offset of time zone in seconds for file time  */
+  bool tz_set;
+  int tz_seconds;
+
+  /* The value set into the isdst member in struct tm given to mktime
+     function if a time is changed for local time zone  */
+  bool lctz_set;
+  int lctz_isdst;
+} FT_CHANGE;
+
+/* Calculate file time from *NOW by members in *TM_CHG and set its value
+   into *FT. If the datetime_unset member is true, not calculate for *NOW
+   and copy it to *FT directly. Return true if not overflow, otherwise,
+   false.  */
+
+bool calcft (FT *ft, const FT *now, const FT_CHANGE *ft_chg);
+
+/* Change the specified file time by members in *TM_CHG and set its value
+   to the file specified by *FT_FILE. If an address in the array pointed
+   to FT_NOWP is NULL, its corresponding file time is not changed. Return
+   true if successfull, otherwise, false.  */
+
+bool setft (struct file *ft_file, const FT *ft_nowp[FT_SIZE],
+            const FT_CHANGE *ft_chg);

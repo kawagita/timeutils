@@ -17,23 +17,21 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifdef USE_TM_CYGWIN
+# include <time.h>
+#else
 # include <windows.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef USE_TM_CYGWIN
-# include <time.h>
-#endif
-
 #include "ft.h"
 
-/* Get the current time in NTFS into *FT. Return true if conversion is
-   performed, otherwise, false.  */
+/* Get the current time on system clock as file time in NTFS. Set its value
+   into *FT and return true if successfull, otherwise, return false.  */
 
 bool
-gettime (FT *ft)
+currentft (FT *ft)
 {
 #ifdef USE_TM_CYGWIN
   if (clock_gettime (CLOCK_REALTIME, ft) != 0)
@@ -50,80 +48,59 @@ gettime (FT *ft)
 # include <stdio.h>
 # include <unistd.h>
 
+# include "cmdtmio.h"
 # include "exit.h"
-# include "printtm.h"
 
 static void
 usage (int status)
 {
-  fputs ("Usage: gettime [OPTION]...\n", stdout);
+  printusage ("currentft", "\n\
+Display current time " IN_DEFAULT_TIME ".\n\
+\n\
+Options:\n"
 # ifdef USE_TM_CYGWIN
-  fputs ("\
-Display current time in seconds since 1970-01-01 00:00 UTC.\n\
-\n\
-Options:\n\
-", stdout);
+"\
+  -f   output time " IN_FILETIME
 # else
-  fputs ("\
-Display current time in 100 nanoseconds since 1601-01-01 00:00 UTC.\n\
-\n\
-Options:\n\
-", stdout);
+"\
+  -s   output time " IN_UNIX_SECONDS
 # endif
-# ifndef USE_TM_CYGWIN
-  fputs ("\
-  -E   output time in seconds since 1970-01-01 00:00 UTC\n\
-", stdout);
-# else
-  fputs ("\
-  -F   output time in 100 nanoseconds since 1601-01-01 00:00 UTC\n\
-", stdout);
-# endif
-  fputs ("\
-  -n   don't output the trailing newline\n\
-  -N   don't output nanoseconds\n\
-", stdout);
+, true, 0);
   exit (status);
 }
 
 int
 main (int argc, char **argv)
 {
-  struct tmout_fmt ft_fmt = { false };
-  struct tmout_ptrs ft_ptrs = { NULL };
   FT ft;
   intmax_t ft_elapse = 0;
-  int ft_frac = 0;
+  int ft_frac_val = 0;
   int c;
   bool success;
-  bool seconds_set = false;
-  bool nsec_set = true;
+  bool seconds_output = false;
+  struct tm_ptrs ft_ptrs = (struct tm_ptrs) { .elapse = &ft_elapse };
+  struct tm_fmt ft_fmt = { false };
 
 # ifdef USE_TM_CYGWIN
-  seconds_set = true;
+  seconds_output = true;
   ft_elapse = -1;
 # endif
-  ft_ptrs.tm_elapse = &ft_elapse;
 
-  while ((c = getopt (argc, argv, ":EFnN")) != -1)
+  while ((c = getopt (argc, argv, ":fs")) != -1)
     {
       switch (c)
         {
-# ifndef USE_TM_CYGWIN
-        case 'E':
-          seconds_set = true;
+# ifdef USE_TM_CYGWIN
+        case 'f':
+          seconds_output = false;
+          ft_elapse = 0;
           break;
 # else
-        case 'F':
-          seconds_set = false;
+        case 's':
+          seconds_output = true;
+          ft_elapse = -1;
           break;
 # endif
-        case 'n':
-          ft_fmt.no_newline = true;
-          break;
-        case 'N':
-          nsec_set = false;
-          break;
         default:
           usage (EXIT_FAILURE);
         }
@@ -132,25 +109,20 @@ main (int argc, char **argv)
   if (argc > optind)
     usage (EXIT_FAILURE);
 
-  success = gettime (&ft);
+  success = currentft (&ft);
 
   if (success)
     {
-      if (seconds_set)  /* Seconds since Unix epoch */
+      if (seconds_output)  /* Seconds since Unix epoch */
         {
-          success = ft2secns (&ft, &ft_elapse, &ft_frac);
+          success = ft2sec (&ft, &ft_elapse, &ft_frac_val);
 
           /* If a time is overflow for time_t of 32 bits, output "-1". */
-          if (success && nsec_set)
-            ft_ptrs.tm_frac = &ft_frac;
+          if (success)
+            ft_ptrs.frac_val = &ft_frac_val;
         }
       else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
-        {
-          ft_elapse = toftval (&ft);
-
-          if (!nsec_set)
-            ft_elapse = ft_elapse / FT_FRAC_PRECISION * FT_FRAC_PRECISION;
-        }
+        ft_elapse = toftval (&ft, 0);
     }
 
   printtm (&ft_fmt, &ft_ptrs);

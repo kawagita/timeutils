@@ -24,8 +24,8 @@
 #ifdef TEST
 # include <stdio.h>
 
-/* The stream to output the calculation of leap days  */
-static FILE *calc_out = NULL;
+/* The flag whether the table of leap days is output  */
+static bool table_output = false;
 
 /* The format to output the number of a year or leap days, and spaces  */
 static char year_format[10] = "  %4d  |";
@@ -35,7 +35,7 @@ static char ldays_format[11] = "  %4d day";
 /* The length of lines separating a year, duration, and leap days  */
 static int line_lengths[3] = { 6, 6, 11 };
 
-/* Output the line of separating a calculation.   */
+/* Output the line of separating a table.   */
 static void
 printline ()
 {
@@ -43,38 +43,34 @@ printline ()
   for (i = 0; i < 3; i++)
     {
       int len = line_lengths[i];
-      fputc (' ', calc_out);
+      fputc (' ', stdout);
       while (--len >= 0)
-        fputc ('-', calc_out);
+        fputc ('-', stdout);
       if (i < 2)
-        fputs (" |", calc_out);
+        fputs (" |", stdout);
     }
-  fputc ('\n', calc_out);
+  fputc ('\n', stdout);
 }
 
 /* Return the sign of '+' or '-' if the specified year is divisible by 400
    or 100, otherwise, return ' '  */
 # define YEAR_DIV100_MARK(year) (year % 100 ? ' ' : (year % 400 ? '-' : '+'))
 
-/* Output the number of the specified year in a calculation.   */
+/* Output the number of the specified year in a table.   */
 static void
-printyear (int year, bool ydiv100_marked)
+printyear (int year, int ydiv100_mark)
 {
-  int ydiv100_mark = ' ';
-  if (ydiv100_marked)
-    ydiv100_mark = YEAR_DIV100_MARK (year);
-
-  fprintf (calc_out, year_format, year);
-  fprintf (calc_out, spaces_format, "");
+  printf (year_format, year);
+  printf (spaces_format, "");
   if (ydiv100_mark != ' ')
-    fprintf (calc_out, " %c\n", ydiv100_mark);
+    printf (" %c\n", ydiv100_mark);
   else
-    fputc ('\n', calc_out);
+    fputc ('\n', stdout);
 }
 
-/* Output a calculation of leap days from the secified start to end year.  */
+/* Output a table of leap days from the secified start to end year.  */
 static void
-printcalc (int ystart, int yend, int ldays, int ydiv100s_not400)
+printtable (int ystart, int yend, int ldays)
 {
   int yterm = yend - ystart;
   if (yterm >= 0)
@@ -89,47 +85,48 @@ printcalc (int ystart, int yend, int ldays, int ydiv100s_not400)
           if (yterm < 399)
             {
               if (yend % 100 != 0)
-                printyear (yend, false);
+                printyear (yend, ' ');
 
               /* Output year numbers divisible by 100 in each line if those
                  are included from start to end year. */
               yend -= yend % 100 + (yend < 0 && yend % 100 != 0 ? 100 : 0);
               for (; ystart < yend; yend -= 100)
-                printyear (yend, true);
+                {
+                  int ydiv100_mark = YEAR_DIV100_MARK (yend);
+                  if (ydiv100_mark == '-')
+                    ldays--;
+
+                  printyear (yend, ydiv100_mark);
+                }
             }
           else
-            printyear (yend, false);
+            printyear (yend, ' ');
 
-          fprintf (calc_out, spaces_format, "");
+          printf (spaces_format, "");
         }
       else
         {
-          fprintf (calc_out, year_format, yend);
+          printf (year_format, yend);
           ldays_format[1] = YEAR_DIV100_MARK (yend);
         }
 
-      fprintf (calc_out, year_format, yterm + 1);
-      fprintf (calc_out, ldays_format, ldays);
+      int ydiv100_mark = ' ';
+      if (yterm < 399)
+        {
+          ydiv100_mark = YEAR_DIV100_MARK (ystart);
+          if (ydiv100_mark == '-')
+            ldays--;
+        }
+
+      printf (year_format, yterm + 1);
+      printf (ldays_format, ldays);
       if (ldays > 1)
-        fputc ('s', calc_out);
-      fputc ('\n', calc_out);
+        fputc ('s', stdout);
+      fputc ('\n', stdout);
       ldays_format[1] = ' ';
 
       if (yterm)
-        printyear (ystart, yterm < 399);
-    }
-
-  /* Output the minus number of years divisible by 100 under 400 years,
-     not including a year divisible by 400. */
-  if (ydiv100s_not400 > 0)
-    {
-      printline ();
-      fprintf (calc_out, spaces_format, "");
-      fprintf (calc_out, spaces_format, "");
-      fprintf (calc_out, ldays_format, - ydiv100s_not400);
-      if (ydiv100s_not400 > 1)
-        fputc ('s', calc_out);
-      fputc ('\n', calc_out);
+        printyear (ystart, ydiv100_mark);
     }
 }
 #endif
@@ -150,7 +147,6 @@ leapdays (int from_year, int to_year)
   int ystart = from_year;
   int yend = to_year;
   int yterm = 0;
-  int ydiv100s_not400 = 0;
   int delta = 0;
 
   if (from_year > to_year)
@@ -158,6 +154,10 @@ leapdays (int from_year, int to_year)
       ystart = to_year;
       yend = from_year;
     }
+
+#ifdef TEST
+  int yend0 = yend;
+#endif
 
   /* Calculate the duration bertween two years including themselves. */
 
@@ -180,14 +180,11 @@ leapdays (int from_year, int to_year)
           ldays = delta * 97;
 
 #ifdef TEST
-          if (calc_out)
-            printcalc (yend_u400 + 1, yend, ldays, -1);
+          if (table_output)
+            printtable (yend_u400 + 1, yend, ldays);
 #endif
 
           yterm = yend_u400 - ystart + 1;
-          if (!yterm)
-            return from_year <= to_year ? ldays : - ldays;
-
           yend = yend_u400;
         }
 
@@ -207,9 +204,10 @@ leapdays (int from_year, int to_year)
             yend_next_mod400 = INT_MIN % 400;
 
           int ydiv100s = (yend_next_mod400 % 100 - yterm) / -100;
-          ydiv100s_not400 = ydiv100s;
           if (ydiv100s)
             {
+              ldays -= ydiv100s;
+
               /* See below whether a year divisible by 400 is included
                  in the rest under 400 years.
 
@@ -221,9 +219,7 @@ leapdays (int from_year, int to_year)
                      -300 to -399   |  Included if ydiv100s > 0   */
 
               if (ydiv100s > 3 - (yend_next_mod400 / -100))
-                ydiv100s_not400--;
-
-              ldays -= ydiv100s_not400;
+                ldays++;
             }
 
           /* Count the number of years divisible by 4 under 400 years. */
@@ -234,8 +230,8 @@ leapdays (int from_year, int to_year)
               ldays += delta;
 
 #ifdef TEST
-              if (calc_out)
-                printcalc (yend_u4 + 1, yend, delta, -1);
+              if (table_output)
+                printtable (yend_u4 + 1, yend, delta);
 #endif
 
               yterm = yend_u4 - ystart + 1;
@@ -249,12 +245,21 @@ leapdays (int from_year, int to_year)
   else if (! HAS_NOLEAPDAY (from_year))
     delta = 1;
 
-#ifdef TEST
-  if (calc_out)
-    printcalc (ystart, yend, delta, ydiv100s_not400);
-#endif
-
   ldays += delta;
+
+#ifdef TEST
+  if (table_output)
+    {
+      printtable (ystart, yend, delta);
+      printline ();
+      printf (spaces_format, "");
+      printf (year_format, yend0 - ystart + 1);
+      printf (ldays_format, ldays);
+      if (ldays > 1)
+        fputc ('s', stdout);
+      fputc ('\n', stdout);
+    }
+#endif
 
   return from_year <= to_year ? ldays : - ldays;
 }
@@ -264,27 +269,23 @@ leapdays (int from_year, int to_year)
 # include <stdio.h>
 # include <unistd.h>
 
+# include "cmdtmio.h"
 # include "error.h"
 # include "exit.h"
-# include "printtm.h"
-# include "sscantm.h"
 
 char *program_name = "leapdays";
 
 static void
 usage (int status)
 {
-  fputs ("Usage: leapdays [OPTION]... YEAR1 YEAR2 \n", stdout);
-  fputs ("\
+  printusage ("leapdays", " YEAR1 YEAR2\n\
 Display the number of leap days between YEAR1 and YEAR2. If YEAR1 is\n\
-less than or equal to YEAR2, its value is added from 1 Jan YEAR1 to 31\n\
-Dec YEAR2, otherwise, subtracted from 1 Jan YEAR2 to 31 Dec YEAR1.\n\
+not more than YEAR2, calculate its value by the increment from 1 Jan\n\
+YEAR1 to 31 Dec YEAR2, otherwise, by the decrement.\n\
 \n\
 Options:\n\
-  -n   don't output the trailing newline\n\
-  -l   output the calculation of leap days to standard output.\n\
-  -L   output the calculation of leap days to standard error.\n\
-", stdout);
+  -t   output the table of leap days instead of a number\
+", true, 0);
   exit (status);
 }
 
@@ -306,24 +307,16 @@ yearwidth (int year)
 int
 main (int argc, char **argv)
 {
-  int year1, year2;
-  int *year_valp[] = { &year1, &year2 };
+  int years[2];
   int ldays;
-  int c, i;
-  bool no_newline = false;
+  int c;
 
-  while ((c = getopt (argc, argv, ":nlL")) != -1)
+  while ((c = getopt (argc, argv, ":t")) != -1)
     {
       switch (c)
         {
-        case 'n':
-          no_newline = true;
-          break;
-        case 'l':
-          calc_out = stdout;
-          break;
-        case 'L':
-          calc_out = stderr;
+        case 't':
+          table_output = true;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -336,24 +329,26 @@ main (int argc, char **argv)
   if (argc < 1 || argc > 2)
     usage (EXIT_FAILURE);
 
+  int i;
   for (i = 0; i < argc; i++)
     {
       char *endptr;
-      int set_num = sscantmint (*argv, year_valp[i], &endptr);
+      int set_num = sscannumint (*argv, years + i, &endptr);
       if (set_num < 0)
-        error (EXIT_FAILURE, 0, "invalid year %s", *argv);
+        error (EXIT_FAILURE, 0, "invalid year %s", endptr);
       else if (set_num == 0 || *endptr != '\0')
         usage (EXIT_FAILURE);
       argv++;
     }
-  if (argc == 1)
-    year2 = year1;
 
-  if (calc_out)
+  if (argc == 1)
+    years[1] = years[0];
+
+  if (table_output)
     {
       char ldays_spaces_format[7] = "  %9s";
-      int ystart = year1 <= year2 ? year1 : year2;
-      int yend = year1 <= year2 ? year2 : year1;
+      int ystart = years[0] <= years[1] ? years[0] : years[1];
+      int yend = years[0] <= years[1] ? years[1] : years[0];
       int yterm = INT_MAX;
 
       if (! INT_SUBTRACT_WRAPV (yend, ystart, &yterm))
@@ -378,22 +373,17 @@ main (int argc, char **argv)
           line_lengths[2] = ywidth + 7;
         }
 
-      /* Output the header of numbers in the calculation. */
-      fprintf (calc_out, spaces_format, "Year");
-      fprintf (calc_out, spaces_format, "Term");
-      fprintf (calc_out, ldays_spaces_format, "Leap Days");
-      fputc ('\n', calc_out);
+      /* Output the header of numbers in the table. */
+      printf (spaces_format, "Year");
+      printf (spaces_format, "Term");
+      printf (ldays_spaces_format, "Leap Days");
+      fputc ('\n', stdout);
     }
 
-  ldays = leapdays (year1, year2);
+  ldays = leapdays (years[0], years[1]);
 
-  if (calc_out)
-    fputc ('\n', calc_out);
-
-  printf ("%d" , ldays);
-
-  if (! no_newline)
-    fputc ('\n', stdout);
+  if (!table_output)
+    printf ("%d\n" , ldays);
 
   return EXIT_SUCCESS;
 }

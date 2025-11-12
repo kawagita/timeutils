@@ -18,11 +18,11 @@
 
 /* Written by David MacKenzie <djm@gnu.ai.mit.edu>.  */
 
-#include "config.h"
-
 #include "error.h"
 
-#include <windows.h>
+#ifndef USE_TM_CYGWIN
+# include <windows.h>
+#endif
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,7 +32,7 @@
 # define _(String) String
 #endif
 
-#ifdef FREE
+#ifdef FREE_WARGV
 extern LPWSTR *wargv;
 #endif
 
@@ -41,39 +41,27 @@ extern LPWSTR *wargv;
 extern char *program_name;
 
 /* Print the system error message corresponding to ERRNUM.  */
-static void
+void
 print_errno_message (int errnum)
 {
   char const *s;
-
-#ifdef USE_TM_CYGWIN
   char errbuf[1024];
 
-  if (strerror_r (errnum, errbuf, sizeof errbuf) == 0)
-    s = errbuf;
-#else
-  LPVOID lpMsgBuf = NULL;
+#ifdef USE_TM_CYGWIN
 
-  if (FormatMessage (FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                     FORMAT_MESSAGE_FROM_SYSTEM |
+  if (strerror_r (errnum, errbuf, sizeof errbuf) == 0)
+#else
+  if (FormatMessage (FORMAT_MESSAGE_FROM_SYSTEM |
                      FORMAT_MESSAGE_IGNORE_INSERTS,
                      NULL, (DWORD)errnum,
                      MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
-                     (LPTSTR)&lpMsgBuf, 0, NULL))
-    s = (char const *)lpMsgBuf;
+                     (LPSTR)&errbuf, sizeof errbuf, NULL))
 #endif
+    s = errbuf;
   else
-    s = 0;
-
-  if (! s)
     s = _("Unknown system error");
 
   fprintf (stderr, ": %s", s);
-
-#ifndef USE_TM_CYGWIN
-  if (lpMsgBuf)
-    LocalFree (lpMsgBuf);
-#endif
 }
 
 /* Print the program name and error message MESSAGE, which is a printf-style

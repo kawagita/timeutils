@@ -99,6 +99,7 @@ adjustday (struct dtm *tm)
 
   if (INT_SUBTRACT_WRAPV (year, TM_YEAR_BASE, &tm->tm_year))
     return -1;
+
   tm->tm_mon = mon;
   tm->tm_mday = days - ydays;
   tm->tm_yday = days - 1;
@@ -111,76 +112,62 @@ adjustday (struct dtm *tm)
 }
 
 #ifdef TEST
-# include <limits.h>
 # include <stdio.h>
 # include <unistd.h>
 
+# include "cmdtmio.h"
 # include "error.h"
 # include "exit.h"
-# include "printtm.h"
-# include "sscantm.h"
 
 char *program_name = "adjustday";
 
 static void
 usage (int status)
 {
-  fputs ("Usage: adjustday [OPTION]... [-]YEAR [-]MONTH [-]DAY\n", stdout);
-  fputs ("\
+  printusage ("adjustday", " [-]YEAR [-]MONTH [-]DAY\n\
 Bring DAY into the range of 0 to the last day in a month and adjust\n\
 YEAR and MONTH by carried value. Display those date if adjustment is\n\
-performed, othewise, \"0000-00-00\".\n\
+performed, othewise, \"-0001-00-00\".\n\
 \n\
 Options:\n\
   -I   output date in ISO 8601 format\n\
   -J   output date in Japanese era name and number\n\
-  -n   don't output the trailing newline\n\
   -w   output date with week day name\n\
   -W   output date with week number and day\n\
-  -Y   output date with year day\n\
-", stdout);
+  -Y   output date with year day\
+", true, 0);
   exit (status);
 }
 
 int
 main (int argc, char **argv)
 {
-  struct tmout_fmt dt_fmt = { false };
-  struct tmout_ptrs dt_ptrs = { NULL };
-  struct dtm date;
+  struct dtm tm = (struct dtm) { .tm_mday = 1, .tm_wday = -1, .tm_yday = -1 };
+  int *dates[] = { &tm.tm_year, &tm.tm_mon, &tm.tm_mday };
   int c;
-  bool success;
+  int status = EXIT_FAILURE;
+  struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .dates = dates };
+  struct tm_fmt tm_fmt = { false };
 
-  dt_ptrs.tm_year = &date.tm_year;
-  dt_ptrs.tm_mon = &date.tm_mon;
-  dt_ptrs.tm_mday = &date.tm_mday;
-
-  date.tm_year = 0;
-  date.tm_mon = date.tm_mday = 1;
-  date.tm_wday = date.tm_yday = -1;
-
-  while ((c = getopt (argc, argv, ":IJnwWY")) != -1)
+  while ((c = getopt (argc, argv, ":IJwWY")) != -1)
     {
       switch (c)
         {
         case 'I':
-          dt_fmt.iso8601 = true;
+          tm_fmt.iso8601 = true;
           break;
         case 'J':
-          dt_fmt.japanese = true;
-          break;
-        case 'n':
-          dt_fmt.no_newline = true;
+          tm_fmt.japanese = true;
           break;
         case 'w':
-          dt_fmt.weekday_name = true;
-          dt_ptrs.tm_wday = &date.tm_wday;
+          tm_fmt.weekday_name = true;
+          tm_ptrs.weekday = &tm.tm_wday;
           break;
         case 'W':
-          dt_fmt.week_numbering = true;
-          dt_ptrs.tm_wday = &date.tm_wday;
+          tm_fmt.week_numbering = true;
+          tm_ptrs.weekday = &tm.tm_wday;
         case 'Y':
-          dt_ptrs.tm_yday = &date.tm_yday;
+          tm_ptrs.yearday = &tm.tm_yday;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -195,40 +182,29 @@ main (int argc, char **argv)
 
   /* Set each parameter of date for the value specified to arguments
      but year must be specified. */
-  const struct tmint_prop dt_props[] =
+  char *endptr;
+  int set_num = sscanreltm (argc, (const char **)argv, &tm_ptrs, &endptr);
+  if (set_num < 0)
+    error (EXIT_FAILURE, 0, "invalid date value %s", endptr);
+  else if (set_num == 0 || *endptr != '\0')
+    usage (EXIT_FAILURE);
+  else if (set_num >= 2)
+    tm.tm_mon--;
+
+  tm.tm_year -= TM_YEAR_BASE;
+
+  if (adjustday (&tm))
     {
-      { 0, INT_MIN + TM_YEAR_BASE, INT_MAX, 0, '\0' },
-      { 0, INT_MIN + 1, INT_MAX, 0, '\0' },
-      { 0, INT_MIN, INT_MAX, 0, '\0' }
-    };
-  int *dt_valp[] = { &date.tm_year, &date.tm_mon, &date.tm_mday };
-  int i = 0;
-  do
-    {
-      char *endptr;
-      int set_num = sscantmintp (*argv, dt_props + i, dt_valp + i, &endptr);
-      if (set_num < 0)
-        error (EXIT_FAILURE, 0, "invalid date value %s", *argv);
-      else if (set_num == 0 || *endptr != '\0')
-        usage (EXIT_FAILURE);
-      argv++;
+      tm.tm_year += TM_YEAR_BASE;
+      tm.tm_mon++;
+
+      status = EXIT_SUCCESS;
     }
-  while (++i < argc);
+  else
+    tm = (struct dtm) { .tm_year = -1, .tm_wday = -1, .tm_yday = -1 };
 
-  date.tm_year -= TM_YEAR_BASE;
-  date.tm_mon--;
+  printtm (&tm_fmt, &tm_ptrs);
 
-  success = adjustday (&date);
-
-  if (!success)
-    {
-      date.tm_year = - TM_YEAR_BASE;
-      date.tm_mon = -1;
-      date.tm_mday = 0;
-    }
-
-  printtm (&dt_fmt, &dt_ptrs);
-
-  return success ? EXIT_SUCCESS : EXIT_FAILURE;
+  return status;
 }
 #endif

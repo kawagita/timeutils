@@ -1,4 +1,4 @@
-/* Get 100 nanoseconds since 1601-01-01 00:00 UTC of file time in NTFS
+/* Get the value of 100 nanoseconds since 1601-01-01 00:00 UTC from file time
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -17,34 +17,48 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifdef USE_TM_CYGWIN
+# include <time.h>
+#else
 # include <windows.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef USE_TM_CYGWIN
-# include <time.h>
-#endif
-
 #include "ft.h"
+#include "modifysec.h"
 
-extern intmax_t secns2ftval (intmax_t seconds, int nsec, FT *ft);
+extern intmax_t sec2ftval (intmax_t seconds, int nsec, FT *ft);
 
-/* Return 100 nanoseconds since 1601-01-01 00:00 UTC converted from
-   the specified file time. If conversion is not performed, return 0.  */
+/* Return the value of 100 nanoseconds since 1601-01-01 00:00 UTC converted
+   from the specified file time, according to SEC_MODFLAG. If conversion is
+   not performed, return 0.  */
 
 intmax_t
-toftval (const FT *ft)
+toftval (const FT *ft, int sec_modflag)
 {
+  intmax_t seconds;
+  int nsec;
+
 # ifdef USE_TM_CYGWIN
-  return secns2ftval (ft->tv_sec, ft->tv_nsec, NULL);
+  seconds = ft->tv_sec;
+  nsec = ft->tv_nsec / 100;
 # else
-  LARGE_INTEGER ft_val;
+  if (!sec_modflag)
+    {
+      LARGE_INTEGER ft_large;
 
-  ft_val.HighPart = ft->dwHighDateTime;
-  ft_val.LowPart = ft->dwLowDateTime;
+      ft_large.HighPart = ft->dwHighDateTime;
+      ft_large.LowPart = ft->dwLowDateTime;
 
-  return ft_val.QuadPart;
+      return ft_large.QuadPart;
+    }
+  else if (! ft2sec (ft, &seconds, &nsec))
+    return 0;
 # endif
+
+  if (! modifysec (&seconds, &nsec, sec_modflag))
+    return 0;
+
+  return sec2ftval (seconds, nsec, NULL);
 }

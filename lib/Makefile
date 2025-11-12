@@ -1,21 +1,32 @@
 CC=i686-w64-mingw32-gcc
-GCC=gcc
 CFLAGS=-std=c11 -O2 -Wformat -Werror
+GCC=gcc
 GFLAGS=-std=gnu11 -O2 -Wformat -Werror
 
-ADJUSTDAY_OBJS=adjusttm.o error.o intoverflow.o leapdays.o printtm.o \
-               sscantmint.o weekday.o yeardays.o
+ADJUSTDAY_OBJS=adjusttm.o error.o imaxoverflow.o intoverflow.o leapdays.o \
+               printtm.o printusage.o sscannumimax.o sscannumint.o sscantm.o \
+               sscanword.o weekday.o yeardays.o
 
-GETFT_OBJS=ft2secns.o printtm.o timeoverflow.o toftval.o yeardays.o
+GETFT_OBJS=currentft.o errft.o ft2sec.o imaxoverflow.o intoverflow.o \
+           modifysec.o printtm.o printusage.o sec2ft.o sscannumint.o \
+           timeoverflow.o toftval.o yeardays.o
 
-GETTIME_OBJS=ft2secns.o printtm.o timeoverflow.o toftval.o yeardays.o
+CURRENTFT_OBJS=error.o ft2sec.o imaxoverflow.o modifysec.o printtm.o \
+               printusage.o sec2ft.o timeoverflow.o toftval.o yeardays.o
 
-LEAPDAYS_OBJS=error.o intoverflow.o printtm.o sscantmint.o
+LEAPDAYS_OBJS=error.o intoverflow.o printusage.o sscannumint.o
 
-LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o sscantmimax.o \
-               sscantmint.o timeoverflow.o yeardays.o
+LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o printusage.o \
+               sscannumimax.o sscannumint.o sscantm.o sscanword.o \
+               timeoverflow.o yeardays.o
 
-MKTIME_OBJS=error.o intoverflow.o printtm.o sscantmint.o yeardays.o
+MKTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o printusage.o \
+            sscannumimax.o sscannumint.o sscantm.o sscanword.o yeardays.o
+
+MODIFYSEC_OBJS=error.o ft2sec.o currentft.o imaxoverflow.o intoverflow.o \
+               modifysec.o printtm.o printusage.o sec2ft.o sscannumimax.o \
+               sscannumint.o sscantm.o sscanword.o timeoverflow.o toftval.o \
+               yeardays.o
 
 # Rules compiling for Mingw to use wrapper localtime or mkfile function
 %.o : %.c
@@ -24,19 +35,16 @@ MKTIME_OBJS=error.o intoverflow.o printtm.o sscantmint.o yeardays.o
 %_test.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DTEST -o $@ -c $<
 
-getft_test.o : getft.c
-	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DTEST -DUNICODE -o $@ -c $<
-
 error_free.o : error.c
-	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DFREE -o $@ -c $<
+	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DFREE_WARGV -o $@ -c $<
 
 libadjustday.a: $(ADJUSTDAY_OBJS)
 	$(AR) rcs $@ $^
 
-libgetft.a: $(GETFT_OBJS) error_free.o
+libcurrentft.a: $(CURRENTFT_OBJS)
 	$(AR) rcs $@ $^
 
-libgettime.a: $(GETTIME_OBJS)
+libgetft.a: $(GETFT_OBJS) error_free.o
 	$(AR) rcs $@ $^
 
 libleapdays.a: $(LEAPDAYS_OBJS)
@@ -45,7 +53,10 @@ libleapdays.a: $(LEAPDAYS_OBJS)
 liblocaltime.a: $(LOCALTIME_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o weekday.o
 	$(AR) rcs $@ $^
 
-libmktime.a: $(MKTIME_OBJS) adjustday.o adjusttm.o adjusttz.o imaxoverflow.o leapdays.o timeoverflow.o weekday.o
+libmktime.a: $(MKTIME_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o timeoverflow.o weekday.o
+	$(AR) rcs $@ $^
+
+libmodifysec.a: $(MODIFYSEC_OBJS)
 	$(AR) rcs $@ $^
 
 # Rules compiling for Cygwin to use localtime_r or mkfile function
@@ -55,16 +66,19 @@ libmktime.a: $(MKTIME_OBJS) adjustday.o adjusttm.o adjusttz.o imaxoverflow.o lea
 %_cygtest.o : %.c
 	$(GCC) $(GFLAGS) -DUSE_TM_CYGWIN -DTEST -o $@ -c $<
 
-libcyggetft.a: $(patsubst %.o,%_cygwin.o,$(GETFT_OBJS)) error_cygwin.o secns2ft_cygwin.o
+libcygcurrentft.a: $(patsubst %.o,%_cygwin.o,$(CURRENTFT_OBJS))
 	$(AR) rcs $@ $^
 
-libcyggettime.a: $(patsubst %.o,%_cygwin.o,$(GETTIME_OBJS)) secns2ft_cygwin.o
+libcyggetft.a: $(patsubst %.o,%_cygwin.o,$(GETFT_OBJS)) error_cygwin.o
 	$(AR) rcs $@ $^
 
 libcyglocaltime.a: $(patsubst %.o,%_cygwin.o,$(LOCALTIME_OBJS))
 	$(AR) rcs $@ $^
 
 libcygmktime.a: $(patsubst %.o,%_cygwin.o,$(MKTIME_OBJS))
+	$(AR) rcs $@ $^
+
+libcygmodifysec.a: $(patsubst %.o,%_cygwin.o,$(MODIFYSEC_OBJS))
 	$(AR) rcs $@ $^
 
 # Rules compiling for Mingw to use localtime_s or mkfile function in MSVCRT

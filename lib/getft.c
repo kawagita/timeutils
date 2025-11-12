@@ -17,19 +17,19 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifdef USE_TM_CYGWIN
+# include <sys/stat.h>
+# include <time.h>
+#else
+# ifndef UNICODE
+#  define UNICODE
+# endif
 # include <windows.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef USE_TM_CYGWIN
-# include <sys/stat.h>
-# include <time.h>
-#endif
-
 #include "ft.h"
-#include "wintm.h"
 
 /* Get file times for the specified struct file into FT and set the flag
    of a directory into the isdir member in *FT_FILE. If the no_dereference
@@ -75,47 +75,44 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
 # include <stdio.h>
 # include <unistd.h>
 
+# include "cmdtmio.h"
+# include "errft.h"
 # include "error.h"
 # include "exit.h"
-# include "printtm.h"
+# include "modifysec.h"
 
 char *program_name = "getft";
 
 static void
 usage (int status)
 {
-  fputs ("Usage: getft [OPTION]... FILE\n", stdout);
-# ifdef USE_TM_CYGWIN
-  fputs ("\
-Display FILE's time in seconds since 1970-01-01 00:00 UTC if exists,\n\
-otherwise, \"-1\".\n\
-", stdout);
-# else
-  fputs ("\
-Display FILE's time in 100 nanoseconds since 1601-01-01 00:00 UTC\n\
-if exists, otherwise, \"0\".\n\
-", stdout);
-# endif
-  fputs ("\
+  printusage ("getft", " FILE\n\
+Display FILE's time " IN_DEFAULT_TIME ".\n\
 \n\
 Options:\n\
-  -a   output the last access time\n\
-", stdout);
+  -a        output the last access time\n\
+  -A        arrange digits of nanoseconds at random\n"
 # ifndef USE_TM_CYGWIN
-  fputs ("\
-  -b   output the creation time\n\
-  -E   output time in seconds since 1970-01-01 00:00 UTC\n\
-", stdout);
+"\
+  -b        output the creation time\n\
+  -C        round up to the smallest second that is not less than time\n\
+  -F        round down to the largest second that does not exceed time\n"
 # else
-  fputs ("\
-  -F   output time in 100 nanoseconds since 1601-01-01 00:00 UTC\n\
-  -h   output time of symbolic link instead of referenced file\n\
-", stdout);
+"\
+  -C        round up to the smallest second that is not less than time\n\
+  -f        output time " IN_FILETIME "\n\
+  -F        round down to the largest second that does not exceed time\n\
+  -h        output time of symbolic link instead of referenced file\n"
 # endif
-  fputs ("\
-  -m   output the last write time (by default)\n\
-  -n   don't output the trailing newline\n\
-", stdout);
+"\
+  -m        output the last write time (by default)\n"
+# ifndef USE_TM_CYGWIN
+"\
+  -s        output time " IN_UNIX_SECONDS "\n"
+# endif
+"\
+  -R SEED   set nanoseconds at random by SEED; If 0, use current time\
+", true, 0);
   exit (status);
 }
 
@@ -126,60 +123,79 @@ LPWSTR *wargv = NULL;
 int
 main (int argc, char **argv)
 {
-  struct tmout_fmt ft_fmt = { false };
-  struct tmout_ptrs ft_ptrs = { NULL };
   struct file ft_file;
   FT ft[FT_SIZE];
   FT *ftp = ft + FT_MTIME;
   intmax_t ft_elapse = 0;
-  int ft_frac = 0;
+  int ft_frac_val = 0;
+  int ft_modflag = 0;
+  int seed = 0;
   int c;
-  bool success;
-  bool seconds_set = false;
+  int set_num;
+  char *endptr;
+  bool success = true;
+  bool seconds_output = false;
+  struct tm_fmt ft_fmt = { false };
+  struct tm_ptrs ft_ptrs = (struct tm_ptrs) { .elapse = &ft_elapse };
 
 # ifdef USE_TM_CYGWIN
-  seconds_set = true;
+  seconds_output = true;
   ft_elapse = -1;
   ft_file.no_dereference = false;
 # endif
-  ft_ptrs.tm_elapse = &ft_elapse;
 
-  while ((c = getopt (argc, argv, ":abEFhmn")) != -1)
+  while ((c = getopt (argc, argv, ":aAbCfFhmsR:")) != -1)
     {
       switch (c)
         {
         case 'a':
           ftp = ft + FT_ATIME;
           break;
+        case 'A':
+          ft_modflag |= NSEC_ARRANGE;
+          break;
 # ifndef USE_TM_CYGWIN
         case 'b':
           ftp = ft + FT_CTIME;
           break;
-        case 'E':
-          seconds_set = true;
+        case 's':
+          seconds_output = true;
           ft_elapse = -1;
           break;
 # else
-        case 'F':
-          seconds_set = false;
+        case 'f':
+          seconds_output = false;
           ft_elapse = 0;
           break;
         case 'h':
           ft_file.no_dereference = true;
           break;
 # endif
+        case 'C':
+          ft_modflag |= SECONDS_ROUND_UP;
+          break;
+        case 'F':
+          ft_modflag |= SECONDS_ROUND_DOWN;
+          break;
         case 'm':
           ftp = ft + FT_MTIME;
           break;
-        case 'n':
-          ft_fmt.no_newline = true;
+        case 'R':
+          ft_modflag |= NSEC_RANDOM;
+          set_num = sscannumuint (optarg, &seed, &endptr);
+          if (set_num < 0)
+            error (EXIT_FAILURE, 0, "invalid seed value %s", optarg);
+          else if (set_num == 0 || *endptr != '\0')
+            usage (EXIT_FAILURE);
           break;
         default:
           usage (EXIT_FAILURE);
         }
     }
 
-  if (argc <= optind || argc - 1 > optind)
+  if (SECONDS_ROUNDING (ft_modflag) == (SECONDS_ROUND_DOWN | SECONDS_ROUND_UP))
+    error (EXIT_FAILURE, 0, "cannot specify the both of rounding down and up");
+  else if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
 # ifndef USE_TM_CYGWIN
@@ -193,19 +209,31 @@ main (int argc, char **argv)
   ft_file.name = argv[optind];
 # endif
 
-  success = getft (ft, &ft_file);
+  if (! getft (ft, &ft_file))
+    errfile (EXIT_FAILURE, ERRNO (), "failed to get attributes of ", &ft_file);
 
-  if (success)
+  /* Generate a new sequence at once before get random values. */
+  if (ft_modflag & (NSEC_RANDOM | NSEC_ARRANGE))
+    srandsec (--seed);
+
+  if (seconds_output)  /* Seconds since Unix epoch */
     {
-      if (seconds_set)  /* Seconds since Unix epoch */
+      success = ft2sec (ftp, &ft_elapse, &ft_frac_val);
+
+      if (success)
         {
-          success = ft2secns (ftp, &ft_elapse, &ft_frac);
+          if (ft_modflag)
+            success = modifysec (&ft_elapse, &ft_frac_val, ft_modflag);
+
+          /* If a time is overflow for time_t of 32 bits, output "-1". */
           if (success)
-            ft_ptrs.tm_frac = &ft_frac;
+            ft_ptrs.frac_val = &ft_frac_val;
         }
-      else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
-        ft_elapse = toftval (ftp);
+      else
+        ft_elapse = -1;
     }
+  else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
+    ft_elapse = toftval (ftp, ft_modflag);
 
   printtm (&ft_fmt, &ft_ptrs);
 

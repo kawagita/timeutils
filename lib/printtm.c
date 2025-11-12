@@ -20,8 +20,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "cmdtmio.h"
 #include "adjusttm.h"
-#include "printtm.h"
 
 /* Abbreviations for the week day  */
 static const char *wday_abbrs[] =
@@ -31,9 +31,6 @@ static const char *wday_abbrs[] =
 
 /* The abbreviation for unknown week day  */
 #define UNKNOWN_WDAY_ABBR "???";
-
-/* Return the week day at January 1st in a year  */
-#define YEAR_1ST_WEEKDAY(yday,wday) (((wday) - ((yday) % 7) + 7) % 7)
 
 /* Return the week day in ISO 8601  */
 #define ISO8601_WEEKDAY(wday) ((wday) > 0 ? (wday) : 7)
@@ -52,10 +49,13 @@ weeknumber (int *year, int yday, int wday, bool iso8601)
     return 0;
   else if (iso8601)
     {
-      int y1st_wday = YEAR_1ST_WEEKDAY (yday, wday);
+      int y1st_wday = WEEKDAY_FROM (wday, - yday);  /* Weed day of 1 Jan */
       int w = (11 + yday - ISO8601_WEEKDAY (wday)) / 7;
       if (w < 1)
         {
+          if (*year <= INT_MIN)
+            return 0;
+
           int last_year = *year - 1;
           bool has_noleapday = HAS_NOLEAPDAY (last_year);
           int last_ydays = has_noleapday ? DAYS_IN_YEAR : DAYS_IN_LEAPYEAR;
@@ -63,12 +63,18 @@ weeknumber (int *year, int yday, int wday, bool iso8601)
           /* Calculate the number of weeks in the last year if the specified
              day is not included in the first week. */
           weeknum = ISO8601_WEEKS (last_year,
-                      YEAR_1ST_WEEKDAY (last_ydays - 1, (y1st_wday + 6) % 7),
+                      WEEKDAY_FROM ((y1st_wday + 6) % 7, 1 - last_ydays),
                       has_noleapday);
           *year = last_year;
         }
       else if (w > ISO8601_WEEKS (*year, y1st_wday, HAS_NOLEAPDAY (*year)))
-        (*year)++;
+        {
+          if (*year < INT_MAX)
+            (*year)++;
+          else
+            /* Return the maximum week number 53 + 1 if overflow. */
+            weeknum = 54;
+        }
       else
         weeknum = w;
     }
@@ -131,258 +137,258 @@ japanese_era (int *year, int *yday)
   return 0;
 }
 
-/* Output a parameter of date or time to standard output.  */
+/* Output a parameter of date to standard output.  */
 static int
-printdatetime (int value, int leading_char, int width)
+printdate (int value, int width, int delim)
 {
   char format[] = "%01d";
 
-  if (width > 0 && width < 10)
+  if (value < 0 && width == 2)
     {
-      if (value < 0 && width == 2)
-        {
-          /* Change the delimiter to '+' if negative value. */
-          value = value > INT_MIN ? - value : INT_MAX;
-          leading_char = '+';
-        }
-
-      format[2] = '0' + width;
+      /* Change the delimiter to '+' if negative value. */
+      value = value > INT_MIN ? - value : INT_MAX;
+      delim = '+';
     }
 
-  if (leading_char)
-    fputc (leading_char, stdout);
+  format[2] = '0' + width;
+
+  if (delim)
+    fputc (delim, stdout);
 
   printf (format, value);
 
   return 1;
 }
 
-/* Output each parameter of time included in *TM_PTRS to standard output
-   if its pointer is not NULL, according to the format of members in
-   *TM_FMT. Return the number of output parameters.  */
+/* Output parameters of time included in *TM_PTRS to standard output,
+   according to the format defined for each flag set in *TM_FMT. Return
+   the number of output parameters.  */
 
 int
-printtm (const struct tmout_fmt *tm_fmt, const struct tmout_ptrs *tm_ptrs)
+printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
 {
-  int tmout_size = 0;
   bool elapse_leading = false;
-  bool hour_output = false;
-  bool sec_output = false;
-  bool japanese = tm_fmt->japanese && ((tm_ptrs->tm_mon && tm_ptrs->tm_mday)
-                                       || tm_ptrs->tm_yday);
+  bool times_leading = false;
+  bool week_numbering = tm_fmt->week_numbering
+                        && tm_ptrs->weekday && tm_ptrs->yearday;
+  bool japanese = tm_fmt->japanese && (tm_ptrs->dates || tm_ptrs->yearday);
   bool iso8601 = tm_fmt->iso8601 && !japanese;
-  bool week_numbering = tm_fmt->week_numbering && !japanese
-                        && tm_ptrs->tm_wday && tm_ptrs->tm_yday;
-  bool relative = tm_fmt->relative && !japanese && !iso8601;
-  const char *elapse_delim = tm_ptrs->elapse_delim
-                             ? tm_ptrs->elapse_delim : " ";
+  int frac_val = -1;
+  int out_num = 0;
 
-  /* Output the value elapsed since a time. */
-  if (tm_ptrs->tm_elapse)
+  /* Output seconds or nanoseconds elapsed since a time. */
+  if (tm_ptrs->elapse)
     {
-      printf ("%" PRIdMAX, *tm_ptrs->tm_elapse);
-      tmout_size++;
+      intmax_t elapse = *tm_ptrs->elapse;
+      if (tm_ptrs->frac_val)
+        {
+          frac_val = *tm_ptrs->frac_val;
+
+          /* Adjust seconds, which is that fractional part is always
+             a positive value even if seconds is negative. */
+          if (elapse < 0 && frac_val > 0)
+            {
+              /* Output the minus sign for -0.nnnnnnn. */
+              if (++elapse == 0)
+                fputc ('-', stdout);
+
+              frac_val = TM_FRAC_MAX - frac_val + 1;
+            }
+        }
+
+      printf ("%" PRIdMAX, elapse);
       elapse_leading = true;
-      sec_output = tm_ptrs->elapse_delim ? false : true;
+      out_num++;
     }
 
   /* Output an abbreviation for the week day. */
-  if (tm_ptrs->tm_wday && tm_fmt->weekday_name)
+  if (tm_ptrs->weekday && tm_fmt->weekday_name)
     {
       const char *wday_abbr = UNKNOWN_WDAY_ABBR;
-      int wday = *tm_ptrs->tm_wday;
+      int wday = *tm_ptrs->weekday;
       if (wday >= 0 && wday <= 6)
         wday_abbr = wday_abbrs[wday];
 
       if (elapse_leading)
-        {
-          fputs (elapse_delim, stdout);
-          elapse_leading = false;
-        }
+        fputc ('\t', stdout);
 
       printf ("%s", wday_abbr);
-      tmout_size++;
+      elapse_leading = false;
+      out_num++;
+
+      if (tm_ptrs->weekday_ordinal)
+        printf (",%" PRIdMAX, *tm_ptrs->weekday_ordinal);
     }
 
-  /* Output the date, starting with the year. */
-  if (tm_ptrs->tm_year)
+  /* Output the date and time. */
+  if (tm_ptrs->dates)
     {
-      int year = *tm_ptrs->tm_year + (relative ? 0 : TM_YEAR_BASE);
-      int year_leading_char = 0;
+      int year = *tm_ptrs->dates[0];
+      int year_width = year < 0 ? 5 : 4;
       int date_delim = '-';
-      int date_width = 0;
       int weeknum = -1;
-      int yday = tm_ptrs->tm_yday ? *tm_ptrs->tm_yday : -1;
+      int yeardaynum = tm_ptrs->yearday ? *tm_ptrs->yearday + 1 : -1;
+      int i;
 
       if (elapse_leading)
-        {
-          fputs (elapse_delim, stdout);
-          elapse_leading = false;
-        }
-      else if (tmout_size > 0)
-        year_leading_char = ' ';
+        fputc ('\t', stdout);
+      else if (out_num > 0)
+        fputc (' ', stdout);
 
       /* Calculate the era symbol or week number of the specified date
          firstly because year changes may vary. */
+      if (week_numbering)
+        weeknum = weeknumber (&year,
+                    *tm_ptrs->yearday, *tm_ptrs->weekday, iso8601);
+
       if (japanese)
         {
-          int era_yday = yday >= 0 ? *tm_ptrs->tm_yday
-                                   : YEAR_DAYS (year, *tm_ptrs->tm_mon)
-                                     + *tm_ptrs->tm_mday - 1;
-          int era_symbol = japanese_era (&year, &era_yday);
+          int yday = yeardaynum > 0 ? yeardaynum - 1
+                                    : YEAR_DAYS (year, *tm_ptrs->dates[1])
+                                    + *tm_ptrs->dates[2] - 1;
+          int era_symbol = japanese_era (&year, &yday);
           if (era_symbol)
             {
-              if (year_leading_char)
-                fputc (year_leading_char, stdout);
+              fputc (era_symbol, stdout);
 
-              year_leading_char = era_symbol;
-              date_width = 2;
+              year_width = 2;
               date_delim = '.';
 
-              if (yday >= 0)
-                yday = era_yday;
+              if (yeardaynum > 0)
+                yeardaynum = yday + 1;
             }
         }
-      else if (week_numbering)
-        weeknum = weeknumber (&year,
-                    *tm_ptrs->tm_yday, *tm_ptrs->tm_wday, iso8601);
 
-      if (relative)
-        {
-          date_delim = ' ';
-          date_width = 1;
-        }
-      else if (date_width == 0)
-        date_width = year < 0 ? 5 : 4;
+      out_num += printdate (year, year_width, 0);
 
-      tmout_size += printdatetime (year, year_leading_char, date_width);
-
-      if (weeknum >= 0)  /* Week number and day */
+      if (weeknum >= 0)  /* Week date */
         {
           printf ("-W%02d", weeknum);
-          tmout_size++;
+          out_num++;
 
           if (!tm_fmt->weekday_name)
             {
-              int wday = *tm_ptrs->tm_wday;
+              int wday = *tm_ptrs->weekday;
               if (wday < 0)
                 wday = 0;
               else if (iso8601)
                 wday = ISO8601_WEEKDAY (wday);
 
               printf ("-%d", wday);
-              tmout_size++;
+              out_num++;
             }
         }
-      else if (yday >= 0)  /* Ordinal date */
+      else if (yeardaynum >= 0)  /* Ordinal date */
         {
-          printf ("-%03d", yday + 1);
-          tmout_size++;
+          printf ("-%03d", yeardaynum);
+          out_num++;
         }
-      else if (tm_ptrs->tm_mon)  /* Month and day */
+      else  /* Calendar date */
         {
-          int month = *tm_ptrs->tm_mon;
+          for (i = 1; i < 3; i++)
+            out_num += printdate (*tm_ptrs->dates[i], 2, date_delim);
+        }
 
-          if (!relative)
+      /* Output the hour, minute, and second. */
+      if (tm_ptrs->times)
+        {
+          if (tm_ptrs->dates && iso8601)
+            fputc ('T', stdout);
+          else if (out_num > 0)
+            fputc (' ', stdout);
+
+          for (i = 0; i < 3; i++)
             {
-              month++;
-              date_width = 2;
+              if (i > 0)
+                fputc (':', stdout);
+
+              printf ("%02d", *tm_ptrs->times[i]);
+              out_num++;
             }
 
-          tmout_size += printdatetime (month, date_delim, date_width);
+          if (tm_ptrs->frac_val)
+            frac_val = *tm_ptrs->frac_val;
 
-          if (tm_ptrs->tm_mday)
-            tmout_size += printdatetime (
-                            *tm_ptrs->tm_mday, date_delim, date_width);
+          times_leading = true;
         }
     }
 
-  /* Output the time in a day, starting with the hour. */
-  if (tm_ptrs->tm_hour)
+  /* Output the value of fractional part in seconds. */
+  if (frac_val >= 0)
     {
-      int hour = *tm_ptrs->tm_hour;
-      int hour_leading_char = 0;
-      int time_delim = ':';
-      int time_width = 2;
-
-      if (elapse_leading)
-        {
-          fputs (elapse_delim, stdout);
-          elapse_leading = false;
-        }
-      else if (tm_ptrs->tm_year && iso8601)
-        hour_leading_char = 'T';
-      else if (tmout_size > 0)
-        hour_leading_char = ' ';
-
-      if (relative)
-        {
-          time_delim = ' ';
-          time_width = 1;
-        }
-
-      tmout_size += printdatetime (hour, hour_leading_char, time_width);
-      hour_output = true;
-
-      if (tm_ptrs->tm_min)  /* Minute and second */
-        {
-          tmout_size += printdatetime (
-                          *tm_ptrs->tm_min, time_delim, time_width);
-
-          if (tm_ptrs->tm_sec)
-            {
-              tmout_size += printdatetime (
-                              *tm_ptrs->tm_sec, time_delim, time_width);
-              sec_output = true;
-            }
-        }
+      printf (TM_FRAC_FORMAT, frac_val);
+      out_num++;
     }
 
-  /* Output the fractional part of seconds. */
-  if (tm_ptrs->tm_frac && sec_output)
+  /* Output the offset of time zone and "DST" if DST is in effect. */
+  if (tm_ptrs->tz_offset && times_leading)
     {
-      int frac_delim = '.';
-      int frac_width = 7;
-
-      if (relative)
-        {
-          frac_delim = ' ';
-          frac_width = 1;
-        }
-
-      tmout_size += printdatetime (*tm_ptrs->tm_frac, frac_delim, frac_width);
-    }
-
-  /* Output the information of time zone. */
-  if (tm_ptrs->tm_gmtoff && hour_output)
-    {
-      long int gmtoff_min = *tm_ptrs->tm_gmtoff / 60;
-      long int abs_gmtoff_min = gmtoff_min < 0 ? - gmtoff_min : gmtoff_min;
+      long int tz_minutes = *tm_ptrs->tz_offset / 60;
+      long int abs_tz_minutes = tz_minutes < 0 ? - tz_minutes : tz_minutes;
 
       if (!iso8601)
         fputc (' ', stdout);
 
-      printf ("%c%02ld%02d", (gmtoff_min < 0 ? '-' : '+'),
-              abs_gmtoff_min / 60, (int)(abs_gmtoff_min % 60));
-      tmout_size++;
+      printf ("%c%02ld%02d", (tz_minutes < 0 ? '-' : '+'),
+              abs_tz_minutes / 60, (int)(abs_tz_minutes % 60));
+      out_num++;
 
-      if (tm_ptrs->tm_isdst && !iso8601)  /* DST or not */
+      if (tm_ptrs->tz_isdst && !iso8601)  /* DST or not */
         {
-          char *dst_state = "";
-          int isdst = *tm_ptrs->tm_isdst;
-          if (isdst > 0)
-            dst_state = " DST";
-          else if (isdst < 0)
-            dst_state = " UNK";
-
-          fputs (dst_state, stdout);
-          tmout_size++;
+          if (*tm_ptrs->tz_isdst > 0)
+            fputs (" DST", stdout);
+          out_num++;
         }
     }
 
-  /* Output the trailing newline if "-n" is not specified by the command. */
-  if (!tm_fmt->no_newline && tmout_size > 0)
+  /* Output the trailing newline. */
+  if (!tm_fmt->no_newline && out_num > 0)
     fputc ('\n', stdout);
 
-  return tmout_size;
+  return out_num;
+}
+
+/* Output relative parameters of time included in *TM_PTRS to standard
+   output. Return the number of output parameters.  */
+
+int
+printreltm (const struct tm_ptrs *tm_ptrs)
+{
+  int out_num = 0;
+
+  /* Output the relative date and time. */
+  if (tm_ptrs->dates)
+    {
+      int i;
+      for (i = 0; i < 3; i++)
+        {
+          if (i > 0)
+            fputc (' ', stdout);
+
+          printf ("%d", *tm_ptrs->dates[i]);
+        }
+      out_num += 3;
+
+      /* Output the relative hour, minutes, and seconds. */
+      if (tm_ptrs->times || tm_ptrs->rel_times)
+        {
+          for (i = 0; i < 3; i++)
+            {
+              if (tm_ptrs->times)
+                printf (" %d", *tm_ptrs->times[i]);
+              else
+                printf (" %" PRIdMAX, *tm_ptrs->rel_times[i]);
+            }
+          out_num += 3;
+
+          /* Output the relative value of fractional part in seconds. */
+          if (tm_ptrs->frac_val)
+            {
+              printf (" %d", *tm_ptrs->frac_val);
+              out_num++;
+            }
+        }
+    }
+
+  return out_num;
 }
