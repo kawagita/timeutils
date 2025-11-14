@@ -90,8 +90,7 @@ usage (int status)
 Display FILE's time " IN_DEFAULT_TIME ".\n\
 \n\
 Options:\n\
-  -a        output the last access time\n\
-  -A        arrange digits of nanoseconds at random\n"
+  -a        output the last access time\n"
 # ifndef USE_TM_CYGWIN
 "\
   -b        output the creation time\n\
@@ -100,19 +99,19 @@ Options:\n\
 # else
 "\
   -C        round up to the smallest second that is not less than time\n\
-  -f        output time " IN_FILETIME "\n\
   -F        round down to the largest second that does not exceed time\n\
+  -f        output time " IN_FILETIME "\n\
   -h        output time of symbolic link instead of referenced file\n"
 # endif
 "\
-  -m        output the last write time (by default)\n"
+  -m        output the last write time (by default)\n\
+  -P        permute digits in nanoseconds less than a second at random\n\
+  -R SEED   set 100 nanoseconds at random by SEED; If 0, use current time\n"
 # ifndef USE_TM_CYGWIN
 "\
-  -s        output time " IN_UNIX_SECONDS "\n"
+  -s        output time " IN_UNIX_SECONDS
 # endif
-"\
-  -R SEED   set nanoseconds at random by SEED; If 0, use current time\
-", true, 0);
+, true, 0);
   exit (status);
 }
 
@@ -144,15 +143,12 @@ main (int argc, char **argv)
   ft_file.no_dereference = false;
 # endif
 
-  while ((c = getopt (argc, argv, ":aAbCfFhmsR:")) != -1)
+  while ((c = getopt (argc, argv, ":aAbCfFhmPR:s")) != -1)
     {
       switch (c)
         {
         case 'a':
           ftp = ft + FT_ATIME;
-          break;
-        case 'A':
-          ft_modflag |= NSEC_ARRANGE;
           break;
 # ifndef USE_TM_CYGWIN
         case 'b':
@@ -180,6 +176,9 @@ main (int argc, char **argv)
         case 'm':
           ftp = ft + FT_MTIME;
           break;
+        case 'P':
+          ft_modflag |= NSEC_PERMUTE;
+          break;
         case 'R':
           ft_modflag |= NSEC_RANDOM;
           set_num = sscannumuint (optarg, &seed, &endptr);
@@ -193,7 +192,7 @@ main (int argc, char **argv)
         }
     }
 
-  if (SECONDS_ROUNDING (ft_modflag) == (SECONDS_ROUND_DOWN | SECONDS_ROUND_UP))
+  if (IS_SECONDS_ROUND_UP (ft_modflag) && IS_SECONDS_ROUND_DOWN (ft_modflag))
     error (EXIT_FAILURE, 0, "cannot specify the both of rounding down and up");
   else if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
@@ -213,7 +212,7 @@ main (int argc, char **argv)
     errfile (EXIT_FAILURE, ERRNO (), "failed to get attributes of ", &ft_file);
 
   /* Generate a new sequence at once before get random values. */
-  if (ft_modflag & (NSEC_RANDOM | NSEC_ARRANGE))
+  if (IS_NSEC_RANDOMIZING (ft_modflag))
     srandsec (--seed);
 
   if (seconds_output)  /* Seconds since Unix epoch */

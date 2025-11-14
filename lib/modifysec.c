@@ -56,6 +56,10 @@ currentns ()
   return ns;
 }
 
+/* This bit complements the random value from 30240 to 32767 because its
+   value can only permute half digits as the permutation key  */
+static int permutation_complement_bit = 0;
+
 /* Generate a new sequence of pseudo-random values for the specified seed
    number. If SEED is less than 0, use current time instead.  */
 
@@ -64,6 +68,8 @@ srandsec (int seed)
 {
   if (seed < 0)
     seed = currentns ();
+
+  permutation_complement_bit = seed % 2;
 
   srand (seed);
 }
@@ -100,31 +106,64 @@ randns ()
 }
 
 /* Return the value into which digits of the specified 100 nanoseconds less
-   than a second are arranged at random.  */
+   than a second are permuted.  */
 static int
-arrangens (int nsec, bool nsec_random)
+permutens (int nsec, bool random)
 {
-  char ns_digits[FT_NSEC_DIGITS] = { 0 };
   int ns = 0;
-  int arrange_key = nsec_random ? nsec : randns ();
+  int ns_digits[FT_NSEC_DIGITS] = { 0 };
   int i;
-
-  /* Place digits of the specified nanoseconds into each position
-     in the array, arranged by the remainder divided by the number
-     from FT_NSEC_DIGITS to 1 If conflict, find an empty position
-     by the increment. */
-  for (i = FT_NSEC_DIGITS; i > 0; i--)
+  for (i = FT_NSEC_DIGITS - 1; i >= 0; i--)
     {
-      int ordinal = arrange_key % i;
-      while (ns_digits[ordinal])
-        ordinal = (ordinal + 1) % FT_NSEC_DIGITS;
-
-      ns_digits[ordinal] = '0' + nsec % 10;
+      ns_digits[i] = nsec % 10;
       nsec /= 10;
     }
 
-  for (i = FT_NSEC_DIGITS - 1; i >= 0; i--)
-     ns = ns * 10 + ns_digits[i] - '0';
+  const int permuted_sizes[] = { 720, 120, 24, 6, 2, 1 };
+  int permutation_key;
+  if (random)
+    {
+      int r = rand () % (RAND_USE_MAX + 1);
+      if (r < 30240)
+        permutation_key = r;
+      else
+        permutation_key = ((r % 5040) << 1) + permutation_complement_bit;
+    }
+  else
+    permutation_key = currentns ();
+
+  /* If PERMUTATION_KEY is greater than the multiple of PERMUTED_SIZES in
+     each index, divide the key by the size and move digits forward placed
+     in the back position from its index to value.
+
+      KEY  |  SEQUENCE       |  PERMUTATION
+     ----- | --------------- | --------------------------------------------
+        0  |  1 2 3 4 5 6 7  |  Don't move digits placed in the same index
+        1  |  1 2 3 4 5 7 6  |  Move 7 to the index of 5
+        2  |  1 2 3 4 6 5 7  |  Move 6 to the index of 4
+        3  |  1 2 3 4 6 7 5  |  Move 6 and 7 to the index of 4 and 5
+        4  |  1 2 3 4 7 5 6  |  Move 7 to the index of 4
+        5  |  1 2 3 4 7 6 5  |  Move 7 and 6 to the index of 4 and 5
+        6  |  1 2 3 5 4 6 7  |  Move 5 to the index of 3
+        7  |  1 2 3 5 4 7 6  |  Move 5 and 7 to the index of 3 and 5
+        8  |  1 2 3 5 6 4 7  |  Move 5 and 6 to the index of 3 and 4      */
+
+  for (i = 0; i < FT_NSEC_DIGITS - 1; i++)
+    {
+      int moved_forward_index =
+            (permutation_key / permuted_sizes[i]) % (FT_NSEC_DIGITS - i) + i;
+      if (i ^ moved_forward_index)
+        {
+          int digit = ns_digits[moved_forward_index];
+          int d;
+          for (d = moved_forward_index - 1; d >= i; d--)
+            ns_digits[d + 1] = ns_digits[d];
+          ns_digits[i] = digit;
+        }
+    }
+
+  for (i = 0; i < FT_NSEC_DIGITS; i++)
+     ns = ns * 10 + ns_digits[i];
 
   return ns;
 }
@@ -141,22 +180,23 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
     {
       intmax_t sec = *seconds;
       int ns = *nsec;
+      bool ns_random = IS_NSEC_RANDOM (modflag);
 
-      if (ns && SECONDS_ROUNDING (modflag))
+      if (ns && IS_SECONDS_ROUNDING (modflag))
         {
           /* Give priority to round seconds up if both are specified. */
-          if (modflag & SECONDS_ROUND_UP
+          if (IS_SECONDS_ROUND_UP (modflag)
               && (IMAX_ADD_WRAPV (1, sec, &sec) || timew_overflow (sec)))
             return false;
 
           ns = 0;
         }
 
-      if (modflag & NSEC_RANDOM)
+      if (ns_random)
         ns = randns ();
 
-      if (modflag & NSEC_ARRANGE)
-        ns = arrangens (ns, modflag & NSEC_RANDOM);
+      if (IS_NSEC_PERMUTE (modflag))
+        ns = permutens (ns, ! ns_random);
 
       *seconds = sec;
       *nsec = ns;
@@ -185,10 +225,10 @@ Repeat the modification of SECONDS since 1970-01-01 00:00 UTC NUMBER\n\
 times. Display modified value if preformed, otherwise, -1.\n\
 \n\
 Options:\n\
-  -A        arrange digits of nanoseconds at random\n\
-  -C        round up to the smallest second that is not less than seconds\n\
-  -F        round down to the largest second that does not exceed seconds\n\
-  -R SEED   set nanoseconds at random by SEED; If 0, use current time",
+  -C        round up to the smallest second that is not less than SECONDS\n\
+  -F        round down to the largest second that does not exceed SECONDS\n\
+  -P        permute digits in nanoseconds less than a second at random\n\
+  -R SEED   set 100 nanoseconds at random by SEED; If 0, use current time",
 true, 0);
   exit (status);
 }
@@ -198,7 +238,7 @@ main (int argc, char **argv)
 {
   intmax_t seconds;
   int nsec = 0;
-  int modflag = 0;
+  int sec_modflag = 0;
   int repeat_num = 1;
   int seed = 0;
   int c, i;
@@ -209,21 +249,21 @@ main (int argc, char **argv)
                                               .frac_val = &nsec };
   struct tm_fmt tm_fmt = { false };
 
-  while ((c = getopt (argc, argv, ":ACFR:")) != -1)
+  while ((c = getopt (argc, argv, ":CFPR:")) != -1)
     {
       switch (c)
         {
-        case 'A':
-          modflag |= NSEC_ARRANGE;
-          break;
         case 'C':
-          modflag |= SECONDS_ROUND_UP;
+          sec_modflag |= SECONDS_ROUND_UP;
           break;
         case 'F':
-          modflag |= SECONDS_ROUND_DOWN;
+          sec_modflag |= SECONDS_ROUND_DOWN;
+          break;
+        case 'P':
+          sec_modflag |= NSEC_PERMUTE;
           break;
         case 'R':
-          modflag |= NSEC_RANDOM;
+          sec_modflag |= NSEC_RANDOM;
           set_num = sscannumuint (optarg, &seed, &endptr);
           if (set_num < 0)
             error (EXIT_FAILURE, 0, "invalid seed value %s", optarg);
@@ -238,7 +278,7 @@ main (int argc, char **argv)
   argc -= optind;
   argv += optind;
 
-  if (SECONDS_ROUNDING (modflag) == (SECONDS_ROUND_DOWN | SECONDS_ROUND_UP))
+  if (IS_SECONDS_ROUND_UP (sec_modflag) && IS_SECONDS_ROUND_DOWN (sec_modflag))
     error (EXIT_FAILURE, 0, "cannot specify the both of rounding down and up");
   else if (argc < 1 || argc > 2)
     usage (EXIT_FAILURE);
@@ -261,7 +301,7 @@ main (int argc, char **argv)
     }
 
   /* Generate a new sequence at once before get random values. */
-  if (modflag & (NSEC_RANDOM | NSEC_ARRANGE))
+  if (IS_NSEC_RANDOMIZING (sec_modflag))
     srandsec (--seed);
 
   for (i = 0; i < repeat_num; i++)
@@ -272,7 +312,7 @@ main (int argc, char **argv)
       tm_ptrs.elapse = &sec;
       tm_ptrs.frac_val = &ns;
 
-      if (! modifysec (&sec, &ns, modflag))
+      if (! modifysec (&sec, &ns, sec_modflag))
         {
           sec = -1;
           tm_ptrs.frac_val = NULL;

@@ -26,11 +26,25 @@ void srandsec (int seed);
 #define SECONDS_ROUND_UP   1
 #define SECONDS_ROUND_DOWN 2
 #define NSEC_RANDOM        4
-#define NSEC_ARRANGE       8
+#define NSEC_PERMUTE       8
 
-/* Return true if seconds is rounded down or up by the specified flag  */
+/* Return true if each modification flag is set  */
 
-#define SECONDS_ROUNDING(flag) (flag & (SECONDS_ROUND_DOWN | SECONDS_ROUND_UP))
+#define IS_SECONDS_ROUND_UP(modflag)   (modflag & SECONDS_ROUND_UP)
+#define IS_SECONDS_ROUND_DOWN(modflag) (modflag & SECONDS_ROUND_DOWN)
+#define IS_NSEC_RANDOM(modflag)        (modflag & NSEC_RANDOM)
+#define IS_NSEC_PERMUTE(modflag)       (modflag & NSEC_PERMUTE)
+
+/* Return true if seconds is rounded up or down to the largest or smallest
+   that is more than or not less than its value by the specified flag  */
+
+#define IS_SECONDS_ROUNDING(modflag) \
+          (modflag & (SECONDS_ROUND_DOWN | SECONDS_ROUND_UP))
+
+/* Return true if the random value of 100 nanoseconds less than a second
+   is used by the specified flag  */
+
+#define IS_NSEC_RANDOMIZING(modflag) (modflag & (NSEC_RANDOM | NSEC_PERMUTE))
 
 /* Modify the specified value of seconds since 1970-01-01 00:00 UTC and 100
    nanoseconds less than a second, according to MODFLAG. Set its two values
