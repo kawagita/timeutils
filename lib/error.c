@@ -20,7 +20,7 @@
 
 #include "error.h"
 
-#ifndef USE_TM_CYGWIN
+#ifndef USE_TM_GLIBC
 # include <windows.h>
 #endif
 #include <stdarg.h>
@@ -47,7 +47,7 @@ print_errno_message (int errnum)
   char const *s;
   char errbuf[1024];
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 
   if (strerror_r (errnum, errbuf, sizeof errbuf) == 0)
 #else

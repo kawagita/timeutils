@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifndef USE_TM_GLIBC
 # include <windows.h>
 #endif
 #include <stdbool.h>
@@ -135,7 +135,7 @@ Options:\n\
   -w   output date with week day name\n\
   -W   output date with week number and day\n\
   -Y   output date with year day\
-", true, 0);
+", true, false, 0);
   exit (status);
 }
 

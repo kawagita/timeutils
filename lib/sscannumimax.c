@@ -18,6 +18,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "cmdtmio.h"
@@ -33,7 +34,7 @@
 int
 sscannumimax (const char *argv, intmax_t *num_val, char **endptr)
 {
-  const struct numimax_prop imax_prop = { 0, INTMAX_MIN, INTMAX_MAX, 0 };
+  const struct numimax_prop imax_prop = { 0, INTMAX_MIN, INTMAX_MAX, false };
 
   return sscannumimaxp (argv, &imax_prop, num_val, NULL, endptr);
 }
@@ -46,7 +47,7 @@ sscannumimax (const char *argv, intmax_t *num_val, char **endptr)
 int
 sscannumuimax (const char *argv, intmax_t *num_val, char **endptr)
 {
-  const struct numimax_prop uimax_prop = { 0, 0, INTMAX_MAX, 0 };
+  const struct numimax_prop uimax_prop = { 0, 0, INTMAX_MAX, false };
 
   return sscannumimaxp (argv, &uimax_prop, num_val, NULL, endptr);
 }
@@ -90,21 +91,18 @@ sscannumimaxp (const char *argv, const struct numimax_prop *num_prop,
   if (! ISDIGIT (*p))
     return 0;
 
-  int frac_digits = num_prop->frac_digits;
-  intmax_t value = sign < 0 && frac_digits <= 0 ? '0' - *p : *p - '0';
+  intmax_t value = sign < 0 && !num_prop->isfrac ? '0' - *p : *p - '0';
   p++;
 
-  if (frac_digits > 0)
+  if (num_prop->isfrac)
     {
       bool digit_parsed = true;
-      intmax_t precision = 10;
+      int frac_digits = TM_FRAC_DIGITS;
 
       /* Accumulate the value of fractional part to the precision. */
       while (--frac_digits > 0)
         {
-          if ((sign < 0
-               && IMAX_MULTIPLY_WRAPV (precision, 10, &precision))
-              || IMAX_MULTIPLY_WRAPV (value, 10, &value))
+          if (IMAX_MULTIPLY_WRAPV (value, 10, &value))
             return -1;
           else if (digit_parsed)
             {
@@ -139,7 +137,7 @@ sscannumimaxp (const char *argv, const struct numimax_prop *num_prop,
 
               /* Add 1.0 and change fractional value to the positive,
                  and set the decrement of integer part. */
-              value = precision - value;
+              value = TM_FRAC_MAX - value + 1;
               *intdecr = 1;
             }
           else
@@ -152,7 +150,7 @@ sscannumimaxp (const char *argv, const struct numimax_prop *num_prop,
       while (ISDIGIT (*p))
         p++;
     }
-  else  /* frac_digits <= 0 */
+  else  /* !num_prop->isfrac */
     {
       /* Convert leading digits of the argument into an intmax_t value. */
       while (ISDIGIT (*p))

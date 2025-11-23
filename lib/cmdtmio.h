@@ -26,9 +26,9 @@ struct numint_prop
   int sign;
   int min_value;
   int max_value;
-  /* If greater than 0, parse the string as fractional part for a leading
-     integer and skip digits over this value */
-  int frac_digits;
+  /* If true, parse the string as fractional part for a leading integer
+     and skip digits over this value */
+  bool isfrac;
 };
 
 /* Parse the leading part of the specified argument as an integer number
@@ -64,7 +64,7 @@ struct numimax_prop
   int sign;
   intmax_t min_value;
   intmax_t max_value;
-  int frac_digits;
+  bool isfrac;
 };
 
 /* Parse the leading part of the specified argument as an intmax_t number
@@ -115,7 +115,6 @@ int sscanword (const char *argv, const struct word_table *table,
 
 struct tm_ptrs
 {
-  intmax_t *elapse;  /* Seconds or nanoseconds elapsed since a time */
   int **dates;
   int *weekday;
   intmax_t *weekday_ordinal;
@@ -123,19 +122,17 @@ struct tm_ptrs
   int **times;
   intmax_t **rel_times;
   int *frac_val;
-  long int *tz_offset;
-  int *tz_isdst;
+  long int *utcoff;
 };
 
 #ifndef TM_YEAR_BASE
 # define TM_YEAR_BASE 1900
 #endif
 
-/* The minimum or maximum value and digits of fractional part in seconds  */
+/* The maximum value and digits of fractional part in seconds  */
 
-#define TM_FRAC_MIN    -9999999
-#define TM_FRAC_MAX     9999999
-#define TM_FRAC_DIGITS        7
+#define TM_FRAC_MAX    9999999
+#define TM_FRAC_DIGITS       7
 
 /* Parse the leading part of the specified argument as parameters of time
    included in *TM_PTRS and set those values into the member, storing
@@ -153,25 +150,54 @@ int sscantm (const char *argv, struct tm_ptrs *tm_ptrs, char **endptr);
 int sscanreltm (int argc, const char **argv,
                 struct tm_ptrs *tm_ptrs, char **endptr);
 
-/* The description of Unix seconds or file time  */
+/* Parse the leading part of the specified argument as seconds since
+   1970-01-01 00:00 UTC and fractional part for its seconds and set
+   those values into *SECONDS and *FRAC_VAL, storing the pointer to
+   a following character into *ENDPTR. Return the number of set values,
+   otherwise, -1 if a value is outside the range of its parameter.  */
+
+int sscanseconds (const char *argv,
+                  intmax_t *seconds, int *frac_val, char **endptr);
+
+/* Parse the leading part of the specified argument as the week day name
+   and ordinal separated by a comma and set those values into *WEEKDAY
+   and *WEEKDAY_ORDINAL, storing the pointer to a following character into
+   *ENDPTR. Return 1 or 0 if a value is set or not.  */
+
+int sscanweekday (const char *argv,
+                  int *weekday, intmax_t *weekday_ordinal, char **endptr);
+
+/* The name of settings whether the time is adjusted by DST offset  */
+
+#define DST_NAME "DST"
+#define ST_NAME  "ST"
+
+/* Parse the leading part of the specified argument as the setting name
+   whether the time is adjusted by DST offset and set its value into
+   *ISDST, storing the pointer to a following character into *ENDPTR.
+   Return 1 or 0 if a value is set or not.  */
+
+int sscanisdst (const char *argv, int *isdst, char **endptr);
+
+/* The description in Unix seconds or file time  */
 
 #define IN_UNIX_SECONDS "in seconds since 1970-01-01 00:00 UTC"
 #define IN_FILETIME     "in 100 nanoseconds since 1601-01-01 00:00 UTC"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # define IN_DEFAULT_TIME IN_UNIX_SECONDS
 #else
 # define IN_DEFAULT_TIME IN_FILETIME
 #endif
 
-/* Output the usage of the specified program name and description
-   to standard output. If HAS_OPTIONS is true, output "[OPTION]..."
-   in the back of *NAME, and if TRANS_NO_DST_OPTION is an alphabet,
-   output the description of adjusting by DST offset for a time that
-   is skipped over and repeated in its transition date.  */
+/* Output the usage of the specified program name and description to
+   standard output. If HAS_OPTIONS is true, output "[OPTION]..." in
+   the back of *NAME, and if HAS_ISDST is true or TRANS_NO_DST_OPTION
+   is an alphabet option, output the description of adjusting by DST
+   offset in the ordinary or transition date.  */
 
 void printusage (const char *name, const char *desc,
-                 bool has_options, int trans_no_dst_option);
+                 bool has_options, bool has_isdst, int trans_no_dst_option);
 
 /* The format of time output to standard output  */
 
@@ -194,7 +220,21 @@ struct tm_fmt
 
 int printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs);
 
-/* Output relative parameters of time included in *TM_PTRS to standard
-   output. Return the number of output parameters.  */
+/* Output relative parameters of time included in *TM_PTRS with a leading
+   space to standard output. If NO_NEWLINE is true, output the trailing
+   newline. Return the number of output parameters.  */
 
-int printreltm (const struct tm_ptrs *tm_ptrs);
+int printreltm (bool no_newline, const struct tm_ptrs *tm_ptrs);
+
+/* Output the specified seconds or nanoseconds elapsed since a time to
+   standard output. If FLAC_VAL is not less than 0 or NO_NEWLINE is true,
+   output its fractional value or the trailing newline. Return 1.  */
+
+int printelapse (bool no_newline, intmax_t elapse, int frac_val);
+
+/* Output the setting name whether the time is adjusted by DST offset
+   in time zone for the specified flag with a leading space to standard
+   output. If NO_NEWLINE is true, output the trailing newline. Return
+   1 if the flag is not less than 0, otherwise, 0.  */
+
+int printisdst (bool no_newline, int isdst);

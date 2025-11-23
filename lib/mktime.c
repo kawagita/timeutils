@@ -17,13 +17,13 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifndef USE_TM_GLIBC
 # include <windows.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifndef USE_TM_WRAPPER
+#ifndef USE_TM_SELFIMPL
 # include <time.h>
 
 # ifdef USE_TM_MSVCRT
@@ -33,7 +33,7 @@ long int tm_diff (struct tm const *a, struct tm const *b);
 
 #include "wintm.h"
 
-#ifdef USE_TM_WRAPPER
+#ifdef USE_TM_SELFIMPL
 # include "adjusttm.h"
 # include "adjusttz.h"
 # include "imaxoverflow.h"
@@ -59,8 +59,8 @@ extern int trans_isdst;
 intmax_t
 mktimew (TM *tm)
 {
-#ifndef USE_TM_WRAPPER
-# ifdef USE_TM_CYGWIN
+#ifndef USE_TM_SELFIMPL
+# ifdef USE_TM_GLIBC
   return mktime (tm);
 # else  /* USE_TM_MSVCRT */
   time_t t;
@@ -95,7 +95,7 @@ mktimew (TM *tm)
 
   return t;
 # endif
-#else  /* USE_TM_WRAPPER */
+#else  /* USE_TM_SELFIMPL */
   struct dtm date;
   intmax_t seconds;
   intmax_t epochday;
@@ -215,21 +215,17 @@ char *program_name = "mktime";
 static void
 usage (int status)
 {
-  printusage ("mktime", " [-D|-S]\n\
+  printusage ("mktime", " [\"" DST_NAME "\"|\"" ST_NAME "\"]\n\
        [-]YEAR [-]MONTH [-]DAY [-]HOUR [-]MINUTE [-]SECOND\n\
-Convert YEAR, MONTH, DAY, HOUR, MINUTES, and SECOND into seconds elapsed\n\
-since 1970-01-01 00:00 UTC and adjust each parameter of time to the range\n\
-of correct values. Display adjusted time if conversion and adjustment is\n\
-performed, othewise, \"-0001-00-00 00:00:00\".\n\
-\n\
-Adjust seconds and time if DST is in effect. With -D or -S, specified\n\
-parameters of time have already been effected by DST offset or not.\
-", true, 'M');
+Convert YEAR, MONTH, DAY, HOUR, MINUTES, and SECOND into seconds\n\
+elapsed since 1970-01-01 00:00 UTC and adjust each parameter of time\n\
+to the range of correct values. Display adjusted time if conversion\n\
+and adjustment is performed, othewise, \"-0001-00-00 00:00:00\".\
+", true, true, 'T');
   fputs ("\
 \n\
 Options:\n\
-  -a   output time with elapsed seconds, week day name, and time zone\n\
-  -e   output time with elapsed seconds\n\
+  -a   output time with week day name and time zone\n\
   -I   output time in ISO 8601 format\n\
   -J   output time in Japanese era name and number\n\
   -s   output time " IN_UNIX_SECONDS "\n\
@@ -250,26 +246,21 @@ main (int argc, char **argv)
   intmax_t seconds;
   int c;
   int status = EXIT_FAILURE;
+  int set_num;
+  char *endptr;
   bool seconds_output = false;
-  bool elapse_output = false;
-  bool weekday_output = false;
-  bool yearday_output = false;
-  bool tz_output = false;
+  bool isdst_output = false;
   struct tm_fmt tm_fmt = { false };
   struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .dates = dates, .times = times };
 
-  while ((c = getopt (argc, argv, ":aeIJswWYzDSM")) != -1)
+  while ((c = getopt (argc, argv, ":aIJswWYzT")) != -1)
     {
       switch (c)
         {
         case 'a':
-          elapse_output = true;
-          tm_fmt.weekday_name = true;
-          weekday_output = true;
-          tz_output = true;
-          break;
-        case 'e':
-          elapse_output = true;
+          tm_fmt.weekday_name = tm_fmt.no_newline = isdst_output = true;
+          tm_ptrs.weekday = &tm.tm_wday;
+          tm_ptrs.utcoff = &tm.tm_gmtoff;
           break;
         case 'I':
           tm_fmt.iso8601 = true;
@@ -282,25 +273,20 @@ main (int argc, char **argv)
           break;
         case 'w':
           tm_fmt.weekday_name = true;
-          weekday_output = true;
+          tm_ptrs.weekday = &tm.tm_wday;
           break;
         case 'W':
           tm_fmt.week_numbering = true;
-          weekday_output = true;
+          tm_ptrs.weekday = &tm.tm_wday;
         case 'Y':
-          yearday_output = true;
+          tm_ptrs.yearday = &tm.tm_yday;
           break;
         case 'z':
-          tz_output = true;
+          tm_fmt.no_newline = isdst_output = true;
+          tm_ptrs.utcoff = &tm.tm_gmtoff;
           break;
-        case 'D':
-          tm.tm_isdst = 1;
-          break;
-        case 'S':
-          tm.tm_isdst = 0;
-          break;
-# ifdef USE_TM_WRAPPER
-        case 'M':
+# ifdef USE_TM_SELFIMPL
+        case 'T':
           trans_isdst = 0;
           break;
 # endif
@@ -312,13 +298,20 @@ main (int argc, char **argv)
   argc -= optind;
   argv += optind;
 
+  /* Attempt to set the isdst flag from the first argument. */
+  if (argc > 0
+      && sscanisdst (*argv, &tm.tm_isdst, &endptr) && *endptr == '\0')
+    {
+      argc--;
+      argv++;
+    }
+
   if (argc <= 0 || argc > 6)
     usage (EXIT_FAILURE);
 
-  /* Set each parameter of time for the value specified to arguments
-     but year must be specified. */
-  char *endptr;
-  int set_num = sscanreltm (argc, (const char **)argv, &tm_ptrs, &endptr);
+  /* Set each parameter of struct tm from the rest of arguments
+     but only the year must be specified. */
+  set_num = sscanreltm (argc, (const char **)argv, &tm_ptrs, &endptr);
   if (set_num < 0)
     error (EXIT_FAILURE, 0, "invalid time value %s", endptr);
   else if (set_num == 0 || *endptr != '\0')
@@ -327,23 +320,6 @@ main (int argc, char **argv)
     tm.tm_mon--;
 
   tm.tm_year -= TM_YEAR_BASE;
-
-  if (seconds_output)
-    tm_ptrs = (struct tm_ptrs) { tm_ptrs.elapse = &seconds };
-  else
-    {
-      if (elapse_output)
-        tm_ptrs.elapse = &seconds;
-      if (weekday_output)
-        tm_ptrs.weekday = &tm.tm_wday;
-      if (yearday_output)
-        tm_ptrs.yearday = &tm.tm_yday;
-      if (tz_output)
-        {
-          tm_ptrs.tz_offset = &tm.tm_gmtoff;
-          tm_ptrs.tz_isdst = &tm.tm_isdst;
-        }
-    }
 
   seconds = mktimew (&tm);
 
@@ -357,7 +333,15 @@ main (int argc, char **argv)
   else
     tm = (TM) { .tm_year = -1, .tm_wday = -1, .tm_yday = -1 };
 
-  printtm (&tm_fmt, &tm_ptrs);
+  if (seconds_output)
+    printelapse (false, seconds, -1);
+  else
+    {
+      printtm (&tm_fmt, &tm_ptrs);
+
+      if (isdst_output)
+        printisdst (false, tm.tm_isdst);
+    }
 
   return status;
 }

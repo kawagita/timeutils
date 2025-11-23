@@ -1,10 +1,13 @@
 GCC=gcc
-LD=i686-w64-mingw32-gcc
+LD=x86_64-w64-mingw32-gcc
+LD_X86=i686-w64-mingw32-gcc
 LDFLAGS=-mconsole
 
 all: adjustday currentft getft leapdays localtime mktime modifysec
 
-cygwin: cygcurrentft cyggetft cyglocaltime cygmktime cygmodifysec
+x86: x86adjustday x86currentft x86getft x86leapdays x86localtime x86mktime x86modifysec
+
+glibc: gnuadjustday gnucurrentft gnugetft gnuleapdays gnulocaltime gnumktime gnumodifysec
 
 msvcrt: mslocaltime msmktime
 
@@ -12,14 +15,22 @@ msvcrt: mslocaltime msmktime
 
 adjustday currentft getft leapdays localtime mktime modifysec:
 	(cd lib && $(MAKE) $@_test.o lib$@.a)
-	$(LD) $(LDFLAGS) -o $@ lib/$@_test.o lib/lib$@.a
+	mkdir -p bin
+	$(LD) $(LDFLAGS) -o bin/$@ lib/$@_test.o lib/lib$@.a
 
-.PHONY: cygcurrentft cyggetft cyglocaltime cygmktime cygmodifysec
+.PHONY: x86adjustday x86currentft x86getft x86leapdays x86localtime x86mktime x86modifysec
 
-cygcurrentft cyggetft cyglocaltime cygmktime cygmodifysec:
-	(cd lib && $(MAKE) $(subst cyg,,$@)_cygtest.o lib$@.a)
-	mkdir -p cygwin
-	$(GCC) -o cygwin/$(subst cyg,,$@) lib/$(subst cyg,,$@)_cygtest.o lib/lib$@.a
+x86adjustday x86currentft x86getft x86leapdays x86localtime x86mktime x86modifysec:
+	(cd lib && $(MAKE) $(subst x86,,$@)_x86test.o lib$@.a)
+	mkdir -p win32
+	$(LD_X86) -o win32/$(subst x86,,$@) lib/$(subst x86,,$@)_x86test.o lib/lib$@.a
+
+.PHONY: gnuadjustday gnucurrentft gnugetft gnuleapdays gnulocaltime gnumktime gnumodifysec
+
+gnuadjustday gnucurrentft gnugetft gnuleapdays gnulocaltime gnumktime gnumodifysec:
+	(cd lib && $(MAKE) $(subst gnu,,$@)_gnutest.o lib$@.a)
+	mkdir -p glibc
+	$(GCC) -o glibc/$(subst gnu,,$@) lib/$(subst gnu,,$@)_gnutest.o lib/lib$@.a
 
 .PHONY: mslocaltime msmktime
 
@@ -29,4 +40,5 @@ mslocaltime msmktime:
 	$(LD) $(LDFLAGS) -o msvcrt/$(subst ms,,$@) lib/$(subst ms,,$@)_mstest.o lib/lib$@.a
 
 clean:
+#	(cd src && $(MAKE) $@)
 	(cd lib && $(MAKE) $@)

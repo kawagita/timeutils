@@ -21,7 +21,7 @@
 #define _ERROR_H 1
 
 /* Return the number of an error that occured the most recently  */
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <errno.h>
 
 # define ERRNO() errno

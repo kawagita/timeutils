@@ -1,42 +1,62 @@
-CC=i686-w64-mingw32-gcc
+CC=x86_64-w64-mingw32-gcc
+CC_X86=i686-w64-mingw32-gcc
 CFLAGS=-std=c11 -O2 -Wformat -Werror
 GCC=gcc
 GFLAGS=-std=gnu11 -O2 -Wformat -Werror
 
+TOUCH_OBJS=argmatch.o error.o ft2sec.o currentft.o imaxoverflow.o \
+           intoverflow.o localtime.o mktime.o parsetime.o posixtm.o \
+           sec2ft.o setft.o timeoverflow.o
+
 ADJUSTDAY_OBJS=adjusttm.o error.o imaxoverflow.o intoverflow.o leapdays.o \
-               printtm.o printusage.o sscannumimax.o sscannumint.o sscantm.o \
-               sscanword.o weekday.o yeardays.o
+               printtm.o printusage.o sscannumimax.o sscannumint.o \
+               sscanreltm.o weekday.o yeardays.o
 
 GETFT_OBJS=currentft.o errft.o ft2sec.o imaxoverflow.o intoverflow.o \
-           modifysec.o printtm.o printusage.o sec2ft.o sscannumint.o \
-           timeoverflow.o toftval.o yeardays.o
+           modifysec.o printelapse.o printusage.o sec2ft.o sscannumint.o \
+           timeoverflow.o toftval.o
 
-CURRENTFT_OBJS=error.o ft2sec.o imaxoverflow.o modifysec.o printtm.o \
+CURRENTFT_OBJS=error.o ft2sec.o imaxoverflow.o modifysec.o printelapse.o \
                printusage.o sec2ft.o timeoverflow.o toftval.o yeardays.o
 
 LEAPDAYS_OBJS=error.o intoverflow.o printusage.o sscannumint.o
 
-LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o printusage.o \
-               sscannumimax.o sscannumint.o sscantm.o sscanword.o \
+LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printisdst.o printtm.o \
+               printusage.o sscannumimax.o sscannumint.o sscanseconds.o \
                timeoverflow.o yeardays.o
 
-MKTIME_OBJS=error.o imaxoverflow.o intoverflow.o printtm.o printusage.o \
-            sscannumimax.o sscannumint.o sscantm.o sscanword.o yeardays.o
+MKTIME_OBJS=error.o imaxoverflow.o intoverflow.o printelapse.o printisdst.o \
+            printtm.o printusage.o sscanisdst.o sscannumimax.o sscannumint.o \
+            sscanreltm.o sscanword.o yeardays.o
 
-MODIFYSEC_OBJS=error.o ft2sec.o currentft.o imaxoverflow.o intoverflow.o \
-               modifysec.o printtm.o printusage.o sec2ft.o sscannumimax.o \
-               sscannumint.o sscantm.o sscanword.o timeoverflow.o toftval.o \
-               yeardays.o
+MODIFYSEC_OBJS=currentft.o error.o imaxoverflow.o intoverflow.o printelapse.o \
+               printusage.o sscannumimax.o sscannumint.o sscanseconds.o \
+               timeoverflow.o
 
-# Rules compiling for Mingw to use wrapper localtime or mkfile function
+PARSEFT_OBJS=currentft.o ft2sec.o imaxoverflow.o intoverflow.o localtime.o \
+             printelapse.o printisdst.o printtm.o printreltm.o printusage.o \
+             timeoverflow.o yeardays.o
+
+SETFT_OBJS=currentft.o errft.o ft2sec.o localtime.o imaxoverflow.o \
+           intoverflow.o mktime.o modifysec.o printelapse.o printusage.o sec2ft.o \
+           sscanisdst.o sscannumimax.o sscannumint.o sscantm.o sscanreltm.o \
+           sscanweekday.o sscanword.o timeoverflow.o toftval.o yeardays.o
+
+# Rules compiling for Windows 64-bits to use self-implemented functions
 %.o : %.c
-	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -o $@ -c $<
+	$(CC) $(CFLAGS) -DUSE_TM_SELFIMPL -o $@ -c $<
+
+timeoverflow.o : timeoverflow.c
+	$(CC) $(CFLAGS) -DUSE_TM_GLIBC -o $@ -c $<
 
 %_test.o : %.c
-	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DTEST -o $@ -c $<
+	$(CC) $(CFLAGS) -DUSE_TM_SELFIMPL -DTEST -o $@ -c $<
 
 error_free.o : error.c
-	$(CC) $(CFLAGS) -DUSE_TM_WRAPPER -DFREE_WARGV -o $@ -c $<
+	$(CC) $(CFLAGS) -DUSE_TM_SELFIMPL -DFREE_WARGV -o $@ -c $<
+
+libtouch.a: $(TOUCH_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o encword.o weekday.o
+	$(AR) rcs $@ $^
 
 libadjustday.a: $(ADJUSTDAY_OBJS)
 	$(AR) rcs $@ $^
@@ -59,39 +79,116 @@ libmktime.a: $(MKTIME_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o timeove
 libmodifysec.a: $(MODIFYSEC_OBJS)
 	$(AR) rcs $@ $^
 
-# Rules compiling for Cygwin to use localtime_r or mkfile function
-%_cygwin.o : %.c
-	$(GCC) $(GFLAGS) -DUSE_TM_CYGWIN -o $@ -c $<
-
-%_cygtest.o : %.c
-	$(GCC) $(GFLAGS) -DUSE_TM_CYGWIN -DTEST -o $@ -c $<
-
-libcygcurrentft.a: $(patsubst %.o,%_cygwin.o,$(CURRENTFT_OBJS))
+libparseft.a: $(PARSEFT_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o encword.o weekday.o
 	$(AR) rcs $@ $^
 
-libcyggetft.a: $(patsubst %.o,%_cygwin.o,$(GETFT_OBJS)) error_cygwin.o
+libsetft.a: $(SETFT_OBJS) adjustday.o adjusttm.o adjusttz.o error_free.o getft.o leapdays.o weekday.o
 	$(AR) rcs $@ $^
 
-libcyglocaltime.a: $(patsubst %.o,%_cygwin.o,$(LOCALTIME_OBJS))
+# Rules compiling for Windows 32-bits to use self-implemented functions
+%_win32.o : %.c
+	$(CC_X86) $(CFLAGS) -DUSE_TM_SELFIMPL -o $@ -c $<
+
+timeoverflow_win32.o : timeoverflow.c
+	$(CC_X86) $(CFLAGS) -DUSE_TM_GLIBC -o $@ -c $<
+
+%_x86test.o : %.c
+	$(CC_X86) $(CFLAGS) -DUSE_TM_SELFIMPL -DTEST -o $@ -c $<
+
+error_free_win32.o : error.c
+	$(CC_X86) $(CFLAGS) -DUSE_TM_SELFIMPL -DFREE_WARGV -o $@ -c $<
+
+libx86touch.a: $(patsubst %.o,%_win32.o,$(TOUCH_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o leapdays_win32.o encword_win32.o weekday_win32.o
 	$(AR) rcs $@ $^
 
-libcygmktime.a: $(patsubst %.o,%_cygwin.o,$(MKTIME_OBJS))
+libx86adjustday.a: $(patsubst %.o,%_win32.o,$(ADJUSTDAY_OBJS))
 	$(AR) rcs $@ $^
 
-libcygmodifysec.a: $(patsubst %.o,%_cygwin.o,$(MODIFYSEC_OBJS))
+libx86currentft.a: $(patsubst %.o,%_win32.o,$(CURRENTFT_OBJS))
 	$(AR) rcs $@ $^
 
-# Rules compiling for Mingw to use localtime_s or mkfile function in MSVCRT
+libx86getft.a: $(patsubst %.o,%_win32.o,$(GETFT_OBJS)) error_free_win32.o
+	$(AR) rcs $@ $^
+
+libx86leapdays.a: $(patsubst %.o,%_win32.o,$(LEAPDAYS_OBJS))
+	$(AR) rcs $@ $^
+
+libx86localtime.a: $(patsubst %.o,%_win32.o,$(LOCALTIME_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o leapdays_win32.o weekday_win32.o
+	$(AR) rcs $@ $^
+
+libx86mktime.a: $(patsubst %.o,%_win32.o,$(MKTIME_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o leapdays_win32.o timeoverflow_win32.o weekday_win32.o
+	$(AR) rcs $@ $^
+
+libx86modifysec.a: $(patsubst %.o,%_win32.o,$(MODIFYSEC_OBJS))
+	$(AR) rcs $@ $^
+
+libx86parseft.a: $(patsubst %.o,%_win32.o,$(PARSEFT_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o leapdays_win32.o encword_win32.o weekday_win32.o
+	$(AR) rcs $@ $^
+
+libx86setft.a: $(patsubst %.o,%_win32.o,$(SETFT_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o error_free_win32.o getft_win32.o leapdays_win32.o weekday_win32.o
+	$(AR) rcs $@ $^
+
+# Rules compiling for GNU/Linux to use POSIX functions in GNU C Library
+%_glibc.o : %.c
+	$(GCC) $(GFLAGS) -DUSE_TM_GLIBC -o $@ -c $<
+
+%_gnutest.o : %.c
+	$(GCC) $(GFLAGS) -DUSE_TM_GLIBC -DTEST -o $@ -c $<
+
+libgnutouch.a: $(patsubst %.o,%_glibc.o,$(TOUCH_OBJS))
+	$(AR) rcs $@ $^
+
+libgnuadjustday.a: $(patsubst %.o,%_glibc.o,$(ADJUSTDAY_OBJS))
+	$(AR) rcs $@ $^
+
+libgnucurrentft.a: $(patsubst %.o,%_glibc.o,$(CURRENTFT_OBJS))
+	$(AR) rcs $@ $^
+
+libgnugetft.a: $(patsubst %.o,%_glibc.o,$(GETFT_OBJS)) error_glibc.o
+	$(AR) rcs $@ $^
+
+libgnuleapdays.a: $(patsubst %.o,%_glibc.o,$(LEAPDAYS_OBJS))
+	$(AR) rcs $@ $^
+
+libgnulocaltime.a: $(patsubst %.o,%_glibc.o,$(LOCALTIME_OBJS))
+	$(AR) rcs $@ $^
+
+libgnumktime.a: $(patsubst %.o,%_glibc.o,$(MKTIME_OBJS))
+	$(AR) rcs $@ $^
+
+libgnumodifysec.a: $(patsubst %.o,%_glibc.o,$(MODIFYSEC_OBJS))
+	$(AR) rcs $@ $^
+
+libgnuparseft.a: $(patsubst %.o,%_glibc.o,$(PARSEFT_OBJS))
+	$(AR) rcs $@ $^
+
+libgnusetft.a: $(patsubst %.o,%_glibc.o,$(SETFT_OBJS)) error_glibc.o fd-reopen_glibc.o fdutimensat_glibc.o getft_glibc.o
+	$(AR) rcs $@ $^
+
+# Rules compiling for Windows 64-bits to use POSIX functions in MS Visual
+# C++ Runtime Library
 %_msvcrt.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_MSVCRT -o $@ -c $<
 
+timeoverflow_msvcrt.o : timeoverflow.c
+	$(CC) $(CFLAGS) -DUSE_TM_GLIBC -o $@ -c $<
+
 %_mstest.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_MSVCRT -DTEST -o $@ -c $<
+
+libmstouch.a: $(patsubst %.o,%_msvcrt.o,$(TOUCH_OBJS)) encword_msvcrt.o tmdiff_msvcrt.o
+	$(AR) rcs $@ $^
 
 libmslocaltime.a: $(patsubst %.o,%_msvcrt.o,$(LOCALTIME_OBJS)) tmdiff_msvcrt.o
 	$(AR) rcs $@ $^
 
 libmsmktime.a: $(patsubst %.o,%_msvcrt.o,$(MKTIME_OBJS)) tmdiff_msvcrt.o
+	$(AR) rcs $@ $^
+
+libmsparseft.a: $(patsubst %.o,%_msvcrt.o,$(PARSEFT_OBJS)) encword_msvcrt.o tmdiff_msvcrt.o
+	$(AR) rcs $@ $^
+
+libmssetft.a: $(patsubst %.o,%_msvcrt.o,$(SETFT_OBJS)) error_free.o getft.o tmdiff_msvcrt.o
 	$(AR) rcs $@ $^
 
 clean:

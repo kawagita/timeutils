@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <time.h>
 #else
 # include <windows.h>
@@ -40,7 +40,7 @@ ft2sec (const FT *ft, intmax_t *seconds, int *nsec)
   intmax_t ft_seconds;
   int ft_nsec;
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
   ft_seconds = ft->tv_sec;
   ft_nsec = ft->tv_nsec / 100;
 #else

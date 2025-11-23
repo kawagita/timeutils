@@ -1,5 +1,4 @@
-/* wintm.h -- Parameters of time used for POSIX function in Windows
-
+/* Output the setting name of adjusting by DST offset to standard output
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -16,33 +15,32 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-/* The year which is set as a zero into the struct TM  */
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdint.h>
 
-#ifndef TM_YEAR_BASE
-# define TM_YEAR_BASE 1900
-#endif
+#include "cmdtmio.h"
 
-/* The structure of a calendar date and time   */
+/* Output the setting name whether the time is adjusted by DST offset
+   in time zone for the specified flag with a leading space to standard
+   output. If NO_NEWLINE is true, output the trailing newline. Return
+   1 if the flag is not less than 0, otherwise, 0.  */
 
-#ifdef USE_TM_GLIBC
-typedef struct tm TM;
-#else
-typedef struct wintm TM;
-
-/* Parameters of time to use for POSIX function in the environment
-   of Windows, instead of struct tm  */
-
-struct wintm
+int
+printisdst (bool no_newline, int isdst)
 {
-  int tm_sec;
-  int tm_min;
-  int tm_hour;
-  int tm_mday;
-  int tm_mon;
-  int tm_year;
-  int tm_wday;
-  int tm_yday;
-  int tm_isdst;
-  long int tm_gmtoff;
-};
-#endif
+  int out_num = 0;
+
+  if (isdst >= 0)
+    {
+      printf (" %s", isdst > 0 ? DST_NAME : ST_NAME);
+      out_num++;
+
+      if (!no_newline)
+        fputc ('\n', stdout);
+    }
+  else if (!no_newline)
+    fputc ('\n', stdout);
+
+  return out_num;
+}

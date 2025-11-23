@@ -17,28 +17,60 @@
 
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
-/* Output the usage of the specified program name and description
-   to standard output. If HAS_OPTIONS is true, output "[OPTION]..."
-   in the back of *NAME, and if TRANS_NO_DST_OPTION is an alphabet,
-   output the description of adjusting by DST offset for a time that
-   is skipped over and repeated in its transition date.  */
+#include "cmdtmio.h"
+
+/* Output the usage of the specified program name and description to
+   standard output. If HAS_OPTIONS is true, output "[OPTION]..." in
+   the back of *NAME, and if HAS_ISDST is true or TRANS_NO_DST_OPTION
+   is an alphabet option, output the description of adjusting by DST
+   offset in the ordinary or transition date.  */
 
 void
 printusage (const char *name, const char *desc,
-            bool has_options, int trans_no_dst_option)
+            bool has_options, bool has_isdst, int trans_no_dst_option)
 {
-  char *optdesc = has_options ? " [OPTION]..." : "";
+  printf ("Usage: %s", name);
 
-#ifdef USE_TM_WRAPPER
-  if (isalpha (trans_no_dst_option))
-    printf ("Usage: %s%s [-%c]%s\n\
+  if (has_options)
+    fputs (" [OPTION]...", stdout);
+
+#ifdef USE_TM_SELFIMPL
+  bool has_no_dst_option = isalpha (trans_no_dst_option);
+  if (has_no_dst_option)
+    printf (" [-%c]", trans_no_dst_option);
+#endif
+
+  printf ("%s\n", desc);
+
+#ifdef USE_TM_SELFIMPL
+  if (has_no_dst_option)
+    {
+      if (has_isdst)
+        {
+          printf ("\
 \n\
-With -%c, don't adjust time by DST offset for a time that is skipped over\n\
-and repeated in its transition date.\n\
-", name, optdesc, trans_no_dst_option, desc, trans_no_dst_option);
+If \"" DST_NAME "\" or \"" ST_NAME "\" is specified, adjust time by\
+ DST offset of current\n\
+time zone or not. With -%c, don't adjust for a time that is skipped\n\
+over and repeated in its transition date.\n\
+", trans_no_dst_option);
+        }
+      else
+        printf ("\
+\n\
+With -%c, don't adjust time by DST offset for a time that is skipped\n\
+over and repeated in its transition date.\n\
+", trans_no_dst_option);
+    }
   else
 #endif
-    printf ("Usage: %s%s%s\n", name, optdesc, desc);
+  if (has_isdst)
+    printf ("\
+\n\
+If \"" DST_NAME "\" or \"" ST_NAME "\" is specified, adjust time by\
+ DST offset of current\ntime zone or not.\n\
+");
 }

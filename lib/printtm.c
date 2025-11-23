@@ -167,39 +167,11 @@ printdate (int value, int width, int delim)
 int
 printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
 {
-  bool elapse_leading = false;
-  bool times_leading = false;
   bool week_numbering = tm_fmt->week_numbering
                         && tm_ptrs->weekday && tm_ptrs->yearday;
   bool japanese = tm_fmt->japanese && (tm_ptrs->dates || tm_ptrs->yearday);
   bool iso8601 = tm_fmt->iso8601 && !japanese;
-  int frac_val = -1;
   int out_num = 0;
-
-  /* Output seconds or nanoseconds elapsed since a time. */
-  if (tm_ptrs->elapse)
-    {
-      intmax_t elapse = *tm_ptrs->elapse;
-      if (tm_ptrs->frac_val)
-        {
-          frac_val = *tm_ptrs->frac_val;
-
-          /* Adjust seconds, which is that fractional part is always
-             a positive value even if seconds is negative. */
-          if (elapse < 0 && frac_val > 0)
-            {
-              /* Output the minus sign for -0.nnnnnnn. */
-              if (++elapse == 0)
-                fputc ('-', stdout);
-
-              frac_val = TM_FRAC_MAX - frac_val + 1;
-            }
-        }
-
-      printf ("%" PRIdMAX, elapse);
-      elapse_leading = true;
-      out_num++;
-    }
 
   /* Output an abbreviation for the week day. */
   if (tm_ptrs->weekday && tm_fmt->weekday_name)
@@ -209,11 +181,7 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
       if (wday >= 0 && wday <= 6)
         wday_abbr = wday_abbrs[wday];
 
-      if (elapse_leading)
-        fputc ('\t', stdout);
-
       printf ("%s", wday_abbr);
-      elapse_leading = false;
       out_num++;
 
       if (tm_ptrs->weekday_ordinal)
@@ -230,9 +198,7 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
       int yeardaynum = tm_ptrs->yearday ? *tm_ptrs->yearday + 1 : -1;
       int i;
 
-      if (elapse_leading)
-        fputc ('\t', stdout);
-      else if (out_num > 0)
+      if (out_num > 0)
         fputc (' ', stdout);
 
       /* Calculate the era symbol or week number of the specified date
@@ -306,89 +272,35 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
               out_num++;
             }
 
+          /* Output the fractional part of seconds. */
           if (tm_ptrs->frac_val)
-            frac_val = *tm_ptrs->frac_val;
-
-          times_leading = true;
-        }
-    }
-
-  /* Output the value of fractional part in seconds. */
-  if (frac_val >= 0)
-    {
-      printf (TM_FRAC_FORMAT, frac_val);
-      out_num++;
-    }
-
-  /* Output the offset of time zone and "DST" if DST is in effect. */
-  if (tm_ptrs->tz_offset && times_leading)
-    {
-      long int tz_minutes = *tm_ptrs->tz_offset / 60;
-      long int abs_tz_minutes = tz_minutes < 0 ? - tz_minutes : tz_minutes;
-
-      if (!iso8601)
-        fputc (' ', stdout);
-
-      printf ("%c%02ld%02d", (tz_minutes < 0 ? '-' : '+'),
-              abs_tz_minutes / 60, (int)(abs_tz_minutes % 60));
-      out_num++;
-
-      if (tm_ptrs->tz_isdst && !iso8601)  /* DST or not */
-        {
-          if (*tm_ptrs->tz_isdst > 0)
-            fputs (" DST", stdout);
-          out_num++;
-        }
-    }
-
-  /* Output the trailing newline. */
-  if (!tm_fmt->no_newline && out_num > 0)
-    fputc ('\n', stdout);
-
-  return out_num;
-}
-
-/* Output relative parameters of time included in *TM_PTRS to standard
-   output. Return the number of output parameters.  */
-
-int
-printreltm (const struct tm_ptrs *tm_ptrs)
-{
-  int out_num = 0;
-
-  /* Output the relative date and time. */
-  if (tm_ptrs->dates)
-    {
-      int i;
-      for (i = 0; i < 3; i++)
-        {
-          if (i > 0)
-            fputc (' ', stdout);
-
-          printf ("%d", *tm_ptrs->dates[i]);
-        }
-      out_num += 3;
-
-      /* Output the relative hour, minutes, and seconds. */
-      if (tm_ptrs->times || tm_ptrs->rel_times)
-        {
-          for (i = 0; i < 3; i++)
             {
-              if (tm_ptrs->times)
-                printf (" %d", *tm_ptrs->times[i]);
-              else
-                printf (" %" PRIdMAX, *tm_ptrs->rel_times[i]);
+              printf (TM_FRAC_FORMAT, *tm_ptrs->frac_val);
+              out_num++;
             }
-          out_num += 3;
 
-          /* Output the relative value of fractional part in seconds. */
-          if (tm_ptrs->frac_val)
+          /* Output the UTC offset in a time zone. */
+          if (tm_ptrs->utcoff)
             {
-              printf (" %d", *tm_ptrs->frac_val);
+              long int utcoff_min = *tm_ptrs->utcoff / 60;
+              long int abs_utcoff_min = utcoff_min;
+              if (utcoff_min == LONG_MIN)
+                abs_utcoff_min = LONG_MAX;
+              else if (utcoff_min < 0)
+                abs_utcoff_min = - utcoff_min;
+
+              if (!iso8601)
+                fputc (' ', stdout);
+
+              printf ("%c%02ld%02d", (utcoff_min < 0 ? '-' : '+'),
+                      abs_utcoff_min / 60, (int)(abs_utcoff_min % 60));
               out_num++;
             }
         }
     }
+
+  if (!tm_fmt->no_newline && out_num > 0)
+    fputc ('\n', stdout);
 
   return out_num;
 }

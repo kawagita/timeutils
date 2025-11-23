@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <time.h>
 #else
 # include <windows.h>
@@ -40,7 +40,7 @@ toftval (const FT *ft, int sec_modflag)
   intmax_t seconds;
   int nsec;
 
-# ifdef USE_TM_CYGWIN
+# ifdef USE_TM_GLIBC
   seconds = ft->tv_sec;
   nsec = ft->tv_nsec / 100;
 # else

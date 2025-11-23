@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <time.h>
 #else
 # include <windows.h>
@@ -33,11 +33,11 @@
 bool
 currentft (FT *ft)
 {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
   if (clock_gettime (CLOCK_REALTIME, ft) != 0)
     return false;
 
-#else  /* USE_TM_MSVCRT || USE_TM_WRAPPER */
+#else
   GetSystemTimeAsFileTime (ft);
 #endif
 
@@ -58,14 +58,14 @@ usage (int status)
 Display current time " IN_DEFAULT_TIME ".\n\
 \n\
 Options:\n"
-# ifdef USE_TM_CYGWIN
+# ifdef USE_TM_GLIBC
 "\
   -f   output time " IN_FILETIME
 # else
 "\
   -s   output time " IN_UNIX_SECONDS
 # endif
-, true, 0);
+, true, false, 0);
   exit (status);
 }
 
@@ -74,14 +74,12 @@ main (int argc, char **argv)
 {
   FT ft;
   intmax_t ft_elapse = 0;
-  int ft_frac_val = 0;
+  int ft_frac_val = -1;
   int c;
   bool success;
   bool seconds_output = false;
-  struct tm_ptrs ft_ptrs = (struct tm_ptrs) { .elapse = &ft_elapse };
-  struct tm_fmt ft_fmt = { false };
 
-# ifdef USE_TM_CYGWIN
+# ifdef USE_TM_GLIBC
   seconds_output = true;
   ft_elapse = -1;
 # endif
@@ -90,7 +88,7 @@ main (int argc, char **argv)
     {
       switch (c)
         {
-# ifdef USE_TM_CYGWIN
+# ifdef USE_TM_GLIBC
         case 'f':
           seconds_output = false;
           ft_elapse = 0;
@@ -115,17 +113,19 @@ main (int argc, char **argv)
     {
       if (seconds_output)  /* Seconds since Unix epoch */
         {
-          success = ft2sec (&ft, &ft_elapse, &ft_frac_val);
+          int frac_val;
+
+          success = ft2sec (&ft, &ft_elapse, &frac_val);
 
           /* If a time is overflow for time_t of 32 bits, output "-1". */
           if (success)
-            ft_ptrs.frac_val = &ft_frac_val;
+            ft_frac_val = frac_val;
         }
       else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
         ft_elapse = toftval (&ft, 0);
     }
 
-  printtm (&ft_fmt, &ft_ptrs);
+  printelapse (false, ft_elapse, ft_frac_val);
 
   return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -20,7 +20,7 @@
 #define PACKAGE_NAME    "timeutils"
 #define PACKAGE_VERSION "1.0"
 
-#ifndef USE_TM_CYGWIN
+#ifndef USE_TM_GLIBC
 /* Set the macro to not define _USE_32BIT_TIME_T in _mingw.h  */
 # define __MINGW_USE_VC2005_COMPAT
 #endif

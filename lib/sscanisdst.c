@@ -1,5 +1,4 @@
-/* wintm.h -- Parameters of time used for POSIX function in Windows
-
+/* Input the setting name of adjusting by DST offset from an argument
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -16,33 +15,26 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-/* The year which is set as a zero into the struct TM  */
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-#ifndef TM_YEAR_BASE
-# define TM_YEAR_BASE 1900
-#endif
+#include "cmdtmio.h"
 
-/* The structure of a calendar date and time   */
+/* Parse the leading part of the specified argument as the setting name
+   whether the time is adjusted by DST offset and set its value into
+   *ISDST, storing the pointer to a following character into *ENDPTR.
+   Return 1 or 0 if a value is set or not.  */
 
-#ifdef USE_TM_GLIBC
-typedef struct tm TM;
-#else
-typedef struct wintm TM;
-
-/* Parameters of time to use for POSIX function in the environment
-   of Windows, instead of struct tm  */
-
-struct wintm
+int
+sscanisdst (const char *argv, int *isdst, char **endptr)
 {
-  int tm_sec;
-  int tm_min;
-  int tm_hour;
-  int tm_mday;
-  int tm_mon;
-  int tm_year;
-  int tm_wday;
-  int tm_yday;
-  int tm_isdst;
-  long int tm_gmtoff;
-};
-#endif
+  const struct word_table isdst_table[] =
+    { { DST_NAME, 1 }, { ST_NAME, 0 }, { NULL, -1 } };
+  int isdst_val;
+  int set_num = sscanword (argv, isdst_table, 0, &isdst_val, endptr);
+  if (set_num > 0)
+    *isdst = isdst_val;
+
+  return set_num;
+}

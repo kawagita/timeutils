@@ -17,13 +17,13 @@
 
 #include "config.h"
 
-#ifndef USE_TM_CYGWIN
+#ifndef USE_TM_GLIBC
 # include <windows.h>
 #endif
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifndef USE_TM_WRAPPER
+#ifndef USE_TM_SELFIMPL
 # include <time.h>
 
 # ifdef USE_TM_MSVCRT
@@ -36,7 +36,7 @@ long int tm_diff (struct tm const *a, struct tm const *b);
 #include "timeoverflow.h"
 #include "wintm.h"
 
-#ifdef USE_TM_WRAPPER
+#ifdef USE_TM_SELFIMPL
 # include "adjusttm.h"
 # include "adjusttz.h"
 #endif
@@ -48,7 +48,7 @@ long int tm_diff (struct tm const *a, struct tm const *b);
 TM *
 localtimew (const intmax_t *seconds, TM *tm)
 {
-#ifndef USE_TM_WRAPPER
+#ifndef USE_TM_SELFIMPL
   time_t t;
 # ifdef USE_TM_MSVCRT
   struct tm gmt, lct;
@@ -58,10 +58,10 @@ localtimew (const intmax_t *seconds, TM *tm)
   if (timew_overflow (*seconds))
     return NULL;
 
-#ifndef USE_TM_WRAPPER
+#ifndef USE_TM_SELFIMPL
   t = *seconds;
 
-# ifdef USE_TM_CYGWIN
+# ifdef USE_TM_GLIBC
   if (! localtime_r (&t, tm))
     return NULL;
 # else  /* USE_TM_MSVCRT */
@@ -80,7 +80,7 @@ localtimew (const intmax_t *seconds, TM *tm)
   tm->tm_isdst = lct.tm_isdst;
   tm->tm_gmtoff = tm_diff (&lct, &gmt);
 # endif
-#else  /* USE_TM_WRAPPER */
+#else  /* USE_TM_SELFIMPL */
   TIME_ZONE_INFORMATION tzinfo;
   struct dtm date;
   struct lctm lct;
@@ -176,7 +176,7 @@ Options:\n\
   -W   output time with week number and day\n\
   -Y   output time with year day\n\
   -z   output time with time zone\
-", true, 0);
+", true, false, 0);
   exit (status);
 }
 
@@ -190,21 +190,18 @@ main (int argc, char **argv)
   int nsec = 0;
   int c;
   int status = EXIT_FAILURE;
-  bool weekday_output = false;
-  bool yearday_output = false;
-  bool tz_output = false;
-  struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .elapse = &seconds,
-                                              .frac_val = &nsec };
+  bool isdst_output = false;
   struct tm_fmt tm_fmt = { false };
+  struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .dates = dates, .times = times };
 
   while ((c = getopt (argc, argv, ":aIJwWYz")) != -1)
     {
       switch (c)
         {
         case 'a':
-          tm_fmt.weekday_name = true;
-          weekday_output = true;
-          tz_output = true;
+          tm_fmt.weekday_name = tm_fmt.no_newline = isdst_output = true;
+          tm_ptrs.weekday = &tm.tm_wday;
+          tm_ptrs.utcoff = &tm.tm_gmtoff;
           break;
         case 'I':
           tm_fmt.iso8601 = true;
@@ -214,16 +211,17 @@ main (int argc, char **argv)
           break;
         case 'w':
           tm_fmt.weekday_name = true;
-          weekday_output = true;
+          tm_ptrs.weekday = &tm.tm_wday;
           break;
         case 'W':
           tm_fmt.week_numbering = true;
-          weekday_output = true;
+          tm_ptrs.weekday = &tm.tm_wday;
         case 'Y':
-          yearday_output = true;
+          tm_ptrs.yearday = &tm.tm_yday;
           break;
         case 'z':
-          tz_output = true;
+          tm_fmt.no_newline = isdst_output = true;
+          tm_ptrs.utcoff = &tm.tm_gmtoff;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -236,19 +234,12 @@ main (int argc, char **argv)
     usage (EXIT_FAILURE);
 
   /* Set the argument into seconds and its fractional part. */
-  char *endptr = NULL;
-  int set_num = sscantm (*argv, &tm_ptrs, &endptr);
+  char *endptr;
+  int set_num = sscanseconds (*argv, &seconds, &nsec, &endptr);
   if (set_num < 0)
     error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
   else if (set_num == 0 || *endptr != '\0')
     usage (EXIT_FAILURE);
-
-  tm_ptrs = (struct tm_ptrs) { .dates = dates,
-                               .times = times,
-                               .weekday = weekday_output ? &tm.tm_wday : NULL,
-                               .yearday = yearday_output ? &tm.tm_yday : NULL,
-                               .tz_offset = tz_output ? &tm.tm_gmtoff : NULL,
-                               .tz_isdst = tz_output ? &tm.tm_isdst : NULL };
 
   if (localtimew (&seconds, &tm))
     {
@@ -262,6 +253,9 @@ main (int argc, char **argv)
     }
 
   printtm (&tm_fmt, &tm_ptrs);
+
+  if (isdst_output)
+    printisdst (false, tm.tm_isdst);
 
   return status;
 }

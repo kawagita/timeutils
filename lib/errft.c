@@ -15,7 +15,7 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <time.h>
 #else
 # ifndef UNICODE
@@ -33,7 +33,7 @@
 #include "errft.h"
 #include "error.h"
 
-#ifndef USE_TM_CYGWIN
+#ifndef USE_TM_GLIBC
 extern LPWSTR *wargv;
 
 extern void print_errno_message (int errnum);
@@ -49,7 +49,7 @@ extern char *program_name;
 void
 errfile (int status, int errnum, const char *desc, struct file *file)
 {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
   error (status, errnum, "%s%s", desc, file->name);
 #else
   HANDLE hStderr = GetStdHandle(STD_ERROR_HANDLE);

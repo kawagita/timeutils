@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <sys/stat.h>
 # include <time.h>
 #else
@@ -39,7 +39,7 @@
 bool
 getft (FT ft[FT_SIZE], struct file *ft_file)
 {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
   struct stat st;
   const char *fname = ft_file->name;
 
@@ -91,7 +91,7 @@ Display FILE's time " IN_DEFAULT_TIME ".\n\
 \n\
 Options:\n\
   -a        output the last access time\n"
-# ifndef USE_TM_CYGWIN
+# ifndef USE_TM_GLIBC
 "\
   -b        output the creation time\n\
   -C        round up to the smallest second that is not less than time\n\
@@ -106,16 +106,16 @@ Options:\n\
 "\
   -m        output the last write time (by default)\n\
   -P        permute digits in nanoseconds less than a second at random\n\
-  -R SEED   set 100 nanoseconds at random by SEED; If 0, use current time\n"
-# ifndef USE_TM_CYGWIN
+  -R SEED   set nanoseconds at random by SEED; If 0, use current time\n"
+# ifndef USE_TM_GLIBC
 "\
   -s        output time " IN_UNIX_SECONDS
 # endif
-, true, 0);
+, true, false, 0);
   exit (status);
 }
 
-# ifndef USE_TM_CYGWIN
+# ifndef USE_TM_GLIBC
 LPWSTR *wargv = NULL;
 # endif
 
@@ -126,7 +126,7 @@ main (int argc, char **argv)
   FT ft[FT_SIZE];
   FT *ftp = ft + FT_MTIME;
   intmax_t ft_elapse = 0;
-  int ft_frac_val = 0;
+  int ft_frac_val = -1;
   int ft_modflag = 0;
   int seed = 0;
   int c;
@@ -134,23 +134,21 @@ main (int argc, char **argv)
   char *endptr;
   bool success = true;
   bool seconds_output = false;
-  struct tm_fmt ft_fmt = { false };
-  struct tm_ptrs ft_ptrs = (struct tm_ptrs) { .elapse = &ft_elapse };
 
-# ifdef USE_TM_CYGWIN
+# ifdef USE_TM_GLIBC
   seconds_output = true;
   ft_elapse = -1;
   ft_file.no_dereference = false;
 # endif
 
-  while ((c = getopt (argc, argv, ":aAbCfFhmPR:s")) != -1)
+  while ((c = getopt (argc, argv, ":abCfFhmPR:s")) != -1)
     {
       switch (c)
         {
         case 'a':
           ftp = ft + FT_ATIME;
           break;
-# ifndef USE_TM_CYGWIN
+# ifndef USE_TM_GLIBC
         case 'b':
           ftp = ft + FT_CTIME;
           break;
@@ -197,7 +195,7 @@ main (int argc, char **argv)
   else if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
-# ifndef USE_TM_CYGWIN
+# ifndef USE_TM_GLIBC
   int wargc;
   wargv = CommandLineToArgvW (GetCommandLineW (), &wargc);
   if (wargv == NULL)
@@ -217,26 +215,29 @@ main (int argc, char **argv)
 
   if (seconds_output)  /* Seconds since Unix epoch */
     {
-      success = ft2sec (ftp, &ft_elapse, &ft_frac_val);
+      int frac_val;
+
+      success = ft2sec (ftp, &ft_elapse, &frac_val);
 
       if (success)
         {
           if (ft_modflag)
-            success = modifysec (&ft_elapse, &ft_frac_val, ft_modflag);
+            success = modifysec (&ft_elapse, &frac_val, ft_modflag);
 
           /* If a time is overflow for time_t of 32 bits, output "-1". */
           if (success)
-            ft_ptrs.frac_val = &ft_frac_val;
+            ft_frac_val = frac_val;
         }
-      else
+
+      if (!success)
         ft_elapse = -1;
     }
   else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
     ft_elapse = toftval (ftp, ft_modflag);
 
-  printtm (&ft_fmt, &ft_ptrs);
+  printelapse (false, ft_elapse, ft_frac_val);
 
-# ifndef USE_TM_CYGWIN
+# ifndef USE_TM_GLIBC
   LocalFree (wargv);
 # endif
 

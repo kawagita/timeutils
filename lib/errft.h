@@ -16,6 +16,14 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
+/* The definition of error files  */
+
+#ifdef USE_TM_GLIBC
+# define ERRFILE_NOT_FOUND(errnum) (errnum == ENOENT)
+#else
+# define ERRFILE_NOT_FOUND(errnum) (errnum == ERROR_FILE_NOT_FOUND)
+#endif
+
 /* Print a message for the specified file, leading characters in the array
    pointed to DESC. Use STATUS or ERRNUM same as the error function.  */
 

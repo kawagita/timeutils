@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <time.h>
 #else
 # include <windows.h>
@@ -41,7 +41,7 @@ currentns ()
 
   if (currentft (&ft))
     {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
       ns = ft.tv_nsec / 100;
 #else
       LARGE_INTEGER ft_large;
@@ -181,6 +181,9 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
       intmax_t sec = *seconds;
       int ns = *nsec;
       bool ns_random = IS_NSEC_RANDOM (modflag);
+      bool negative = sec < 0;
+      if (negative)
+        ns = FT_NSEC_PRECISION - ns;
 
       if (ns && IS_SECONDS_ROUNDING (modflag))
         {
@@ -197,6 +200,9 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
 
       if (IS_NSEC_PERMUTE (modflag))
         ns = permutens (ns, ! ns_random);
+
+      if (ns && negative)
+        ns = FT_NSEC_PRECISION - ns;
 
       *seconds = sec;
       *nsec = ns;
@@ -229,7 +235,7 @@ Options:\n\
   -F        round down to the largest second that does not exceed SECONDS\n\
   -P        permute digits in nanoseconds less than a second at random\n\
   -R SEED   set 100 nanoseconds at random by SEED; If 0, use current time",
-true, 0);
+true, false, 0);
   exit (status);
 }
 
@@ -245,9 +251,6 @@ main (int argc, char **argv)
   int status = EXIT_SUCCESS;
   int set_num;
   char *endptr;
-  struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .elapse = &seconds,
-                                              .frac_val = &nsec };
-  struct tm_fmt tm_fmt = { false };
 
   while ((c = getopt (argc, argv, ":CFPR:")) != -1)
     {
@@ -284,7 +287,7 @@ main (int argc, char **argv)
     usage (EXIT_FAILURE);
 
   /* Set the first argument into seconds and its fractional part. */
-  set_num = sscantm (*argv, &tm_ptrs, &endptr);
+  set_num = sscanseconds (*argv, &seconds, &nsec, &endptr);
   if (set_num < 0)
     error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
   else if (set_num == 0 || *endptr != '\0')
@@ -309,18 +312,15 @@ main (int argc, char **argv)
       intmax_t sec = seconds;
       int ns = nsec;
 
-      tm_ptrs.elapse = &sec;
-      tm_ptrs.frac_val = &ns;
-
       if (! modifysec (&sec, &ns, sec_modflag))
         {
           sec = -1;
-          tm_ptrs.frac_val = NULL;
+          ns = -1;
 
           status = EXIT_FAILURE;
         }
 
-      printtm (&tm_fmt, &tm_ptrs);
+      printelapse (false, sec, ns);
     }
 
   return status;

@@ -19,11 +19,17 @@
 
 /* The structure into which file time is stored  */
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 typedef struct timespec FT;
 #else
 typedef FILETIME FT;
 #endif
+
+/* The maximum and minimum value of seconds since 1601-01-01 00:00 UTC
+   in file time  */
+
+#define FT_SECONDS_MAX  922337203685
+#define FT_SECONDS_MIN -922337203685
 
 /* The precision and number of digits for a nanosecond in file time  */
 
@@ -61,7 +67,7 @@ bool sec2ft (intmax_t seconds, int nsec, FT *ft);
 
 /* The size or each index of file times, set in a file  */
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # define FT_SIZE 2
 #else
 # define FT_SIZE 3
@@ -75,14 +81,14 @@ bool sec2ft (intmax_t seconds, int nsec, FT *ft);
 
 struct file
 {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
   const char *name;
   int fd;
+  bool no_dereference;
 #else
   LPCWSTR name;
   HANDLE hFile;
 #endif
-  bool no_dereference;
   bool isdir;
 };
 
@@ -97,10 +103,12 @@ bool getft (FT ft[FT_SIZE], struct file *ft_file);
 
 typedef struct
 {
-  bool datetime_unset;  /* true if date and time is not set  */
-  bool date_set;        /* true if date is set  */
+  /* If the datetime_unset member is true, any parameter of date and time
+     in this structure is not set into file time  */
+  bool datetime_unset;
 
   /* The date and time adapted to file time before the modification  */
+  bool date_set;
   int year;
   int month;
   int day;
@@ -112,6 +120,7 @@ typedef struct
   int sec_modflag;
 
   /* Positive or negative values to modify file time   */
+  bool rel_set;
   int rel_year;
   int rel_month;
   int rel_day;
@@ -124,13 +133,12 @@ typedef struct
   int day_number;
   intmax_t day_ordinal;
 
-  /* The offset of time zone in seconds for file time  */
+  /* The offset of a time zone in seconds for file time  */
   bool tz_set;
-  int tz_seconds;
+  int tz_offset;
 
   /* The value set into the isdst member in struct tm given to mktime
-     function if a time is changed for local time zone  */
-  bool lctz_set;
+     function if file time is changed for local time zone  */
   int lctz_isdst;
 } FT_CHANGE;
 
@@ -148,3 +156,25 @@ bool calcft (FT *ft, const FT *now, const FT_CHANGE *ft_chg);
 
 bool setft (struct file *ft_file, const FT *ft_nowp[FT_SIZE],
             const FT_CHANGE *ft_chg);
+
+/* Parameters parsed from a date and time string, setting file time  */
+
+typedef union
+{
+  /* Parameters of Unix time, specified by "@ SECONDS[.nnnnnnn]"  */
+  struct
+    {
+      bool seconds_set;
+      intmax_t seconds;
+      int nsec;
+    } timespec;
+
+  /* Parameters by which file time is changed  */
+  FT_CHANGE ft_change;
+} FT_PARSING;
+
+/* Parse the specified string as parameters of setting file time and set
+   those values into *FT_PARSING. Return true if its string is correct,
+   otherwise, false.  */
+
+bool parseft (FT_PARSING *ft_parsing, const char *str);

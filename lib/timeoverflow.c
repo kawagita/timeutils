@@ -1,4 +1,4 @@
-/* Check whether a second overflows for time_T and in NTFS
+/* Check whether the value of seconds overflow in time_t and file time
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -22,9 +22,13 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "ft.h"
+
+#define FT_UNIXEPOCH_SEC (FT_UNIXEPOCH_NSEC / FT_NSEC_PRECISION)
+
 /* Maximum and minimum seconds since Unix epoch, represented by file time  */
-#define MAX_SECONDS_SINCE_UNIXEPOCH  910692730085LL
-#define MIN_SECONDS_SINCE_UNIXEPOCH -933981677285LL
+static intmax_t const seconds_max = FT_SECONDS_MAX - FT_UNIXEPOCH_SEC;
+static intmax_t const seconds_min = FT_SECONDS_MIN - FT_UNIXEPOCH_SEC;
 
 /* Maximum and minimum value for time_t  */
 #define TIME_T_MAX \
@@ -39,12 +43,10 @@ static intmax_t const time_t_min = (intmax_t) ~ TIME_T_MAX;
 bool
 timew_overflow (intmax_t seconds)
 {
-  if (MAX_SECONDS_SINCE_UNIXEPOCH < time_t_max
-      ? seconds > MAX_SECONDS_SINCE_UNIXEPOCH : seconds > time_t_max)
-    return true;
-  else if (MIN_SECONDS_SINCE_UNIXEPOCH > time_t_min
-      ? seconds < MIN_SECONDS_SINCE_UNIXEPOCH : seconds < time_t_min)
-    return true;
+  if (seconds >= 0)
+    return seconds_max < time_t_max
+      ? seconds > seconds_max : seconds > time_t_max;
 
-  return false;
+  return seconds_min > time_t_min
+      ? seconds < seconds_min : seconds < time_t_min;
 }

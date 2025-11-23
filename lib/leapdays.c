@@ -285,7 +285,7 @@ YEAR1 to 31 Dec YEAR2, otherwise, by the decrement.\n\
 \n\
 Options:\n\
   -t   output the table of leap days instead of a number\
-", true, 0);
+", true, false, 0);
   exit (status);
 }
 
@@ -360,7 +360,9 @@ main (int argc, char **argv)
       int ywidth = ystart_width < yend_width
                    ? (yterm_width < yend_width ? yend_width : yterm_width)
                    : (yterm_width < ystart_width ? ystart_width : yterm_width);
-      if (ywidth > 4)
+      if (ywidth >= 95)
+        error (EXIT_FAILURE, 0, "invalid year width %d", ywidth);
+      else if (ywidth > 4)
         {
           /* Set the output width of a year or leap days in the format to
              the greater width of the specified two years or its duration. */

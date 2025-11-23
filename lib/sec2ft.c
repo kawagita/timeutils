@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
 # include <time.h>
 #else
 # include <windows.h>
@@ -54,7 +54,7 @@ sec2ftval (intmax_t seconds, int nsec, FT *ft)
 
       if (ft)
         {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
           ft->tv_sec = seconds;
           ft->tv_nsec = nsec * 100;
 #else
@@ -79,7 +79,7 @@ sec2ftval (intmax_t seconds, int nsec, FT *ft)
 bool
 sec2ft (intmax_t seconds, int nsec, FT *ft)
 {
-#ifdef USE_TM_CYGWIN
+#ifdef USE_TM_GLIBC
   if (nsec < 0 || timew_overflow (seconds))
     return false;
 
