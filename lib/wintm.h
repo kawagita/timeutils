@@ -22,14 +22,14 @@
 # define TM_YEAR_BASE 1900
 #endif
 
-/* The structure of a calendar date and time   */
+/* The structure of a calendar date and time  */
 
 #ifdef USE_TM_GLIBC
 typedef struct tm TM;
 #else
 typedef struct wintm TM;
 
-/* Parameters of time to use for POSIX function in the environment
+/* Parameters of time used for POSIX function in the environment
    of Windows, instead of struct tm  */
 
 struct wintm
@@ -46,3 +46,17 @@ struct wintm
   long int tm_gmtoff;
 };
 #endif
+
+/* Convert the specified parameters of time into seconds since 1970-01-01
+   00:00 UTC, and adjust each parameter to the range of correct values and
+   set those values back into *TM. Return the value of converted seconds
+   if conversion is performed, otherwise, return -1 and don't overwrite
+   members in *TM.  */
+
+intmax_t mktimew (TM *tm);
+
+/* Convert the specified seconds since 1970-01-01 00:00 UTC to local time
+   and set those parameters of time into *TM. Return the pointer to it
+   if conversion is performed, otherwise, NULL. */
+
+TM *localtimew (const intmax_t *seconds, TM *tm);

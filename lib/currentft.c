@@ -60,7 +60,7 @@ Display current time " IN_DEFAULT_TIME ".\n\
 Options:\n"
 # ifdef USE_TM_GLIBC
 "\
-  -f   output time " IN_FILETIME
+  -v   output time " IN_FILETIME
 # else
 "\
   -s   output time " IN_UNIX_SECONDS
@@ -84,12 +84,12 @@ main (int argc, char **argv)
   ft_elapse = -1;
 # endif
 
-  while ((c = getopt (argc, argv, ":fs")) != -1)
+  while ((c = getopt (argc, argv, ":sv")) != -1)
     {
       switch (c)
         {
 # ifdef USE_TM_GLIBC
-        case 'f':
+        case 'v':
           seconds_output = false;
           ft_elapse = 0;
           break;
@@ -111,7 +111,7 @@ main (int argc, char **argv)
 
   if (success)
     {
-      if (seconds_output)  /* Seconds since Unix epoch */
+      if (seconds_output)  /* Seconds since 1970-01-01 00:00 UTC */
         {
           int frac_val;
 
@@ -122,7 +122,7 @@ main (int argc, char **argv)
             ft_frac_val = frac_val;
         }
       else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
-        ft_elapse = toftval (&ft, 0);
+        success = ft2val (&ft, 0, &ft_elapse);
     }
 
   printelapse (false, ft_elapse, ft_frac_val);

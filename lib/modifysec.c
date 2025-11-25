@@ -27,9 +27,8 @@
 #include <stdlib.h>
 
 #include "ft.h"
+#include "ftsec.h"
 #include "imaxoverflow.h"
-#include "modifysec.h"
-#include "timeoverflow.h"
 
 /* Return the value of 100 nanoseconds less than a second in current time
    if successful, otherwise, FT_NSEC_PRECISION. */
@@ -44,10 +43,9 @@ currentns ()
 #ifdef USE_TM_GLIBC
       ns = ft.tv_nsec / 100;
 #else
-      LARGE_INTEGER ft_large;
-
-      ft_large.HighPart = ft.dwHighDateTime;
-      ft_large.LowPart = ft.dwLowDateTime;
+      LARGE_INTEGER ft_large =
+        (LARGE_INTEGER) { .HighPart = ft.dwHighDateTime,
+                          .LowPart = ft.dwLowDateTime };
 
       ns = ft_large.QuadPart % FT_NSEC_PRECISION;
 #endif
@@ -180,16 +178,16 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
     {
       intmax_t sec = *seconds;
       int ns = *nsec;
-      bool ns_random = IS_NSEC_RANDOM (modflag);
+      bool ns_random = IS_FT_NSEC_RANDOM (modflag);
       bool negative = sec < 0;
       if (negative)
         ns = FT_NSEC_PRECISION - ns;
 
-      if (ns && IS_SECONDS_ROUNDING (modflag))
+      if (ns && IS_FT_SECONDS_ROUNDING (modflag))
         {
           /* Give priority to round seconds up if both are specified. */
-          if (IS_SECONDS_ROUND_UP (modflag)
-              && (IMAX_ADD_WRAPV (1, sec, &sec) || timew_overflow (sec)))
+          if (IS_FT_SECONDS_ROUND_UP (modflag)
+              && (IMAX_ADD_WRAPV (1, sec, &sec) || secoverflow (sec, 0)))
             return false;
 
           ns = 0;
@@ -198,7 +196,7 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
       if (ns_random)
         ns = randns ();
 
-      if (IS_NSEC_PERMUTE (modflag))
+      if (IS_FT_NSEC_PERMUTE (modflag))
         ns = permutens (ns, ! ns_random);
 
       if (ns && negative)
@@ -244,7 +242,7 @@ main (int argc, char **argv)
 {
   intmax_t seconds;
   int nsec = 0;
-  int sec_modflag = 0;
+  int modflag = 0;
   int repeat_num = 1;
   int seed = 0;
   int c, i;
@@ -257,16 +255,16 @@ main (int argc, char **argv)
       switch (c)
         {
         case 'C':
-          sec_modflag |= SECONDS_ROUND_UP;
+          modflag |= FT_SECONDS_ROUND_UP;
           break;
         case 'F':
-          sec_modflag |= SECONDS_ROUND_DOWN;
+          modflag |= FT_SECONDS_ROUND_DOWN;
           break;
         case 'P':
-          sec_modflag |= NSEC_PERMUTE;
+          modflag |= FT_NSEC_PERMUTE;
           break;
         case 'R':
-          sec_modflag |= NSEC_RANDOM;
+          modflag |= FT_NSEC_RANDOM;
           set_num = sscannumuint (optarg, &seed, &endptr);
           if (set_num < 0)
             error (EXIT_FAILURE, 0, "invalid seed value %s", optarg);
@@ -281,7 +279,7 @@ main (int argc, char **argv)
   argc -= optind;
   argv += optind;
 
-  if (IS_SECONDS_ROUND_UP (sec_modflag) && IS_SECONDS_ROUND_DOWN (sec_modflag))
+  if (IS_FT_SECONDS_ROUND_UP (modflag) && IS_FT_SECONDS_ROUND_DOWN (modflag))
     error (EXIT_FAILURE, 0, "cannot specify the both of rounding down and up");
   else if (argc < 1 || argc > 2)
     usage (EXIT_FAILURE);
@@ -304,7 +302,7 @@ main (int argc, char **argv)
     }
 
   /* Generate a new sequence at once before get random values. */
-  if (IS_NSEC_RANDOMIZING (sec_modflag))
+  if (IS_FT_NSEC_RANDOMIZING (modflag))
     srandsec (--seed);
 
   for (i = 0; i < repeat_num; i++)
@@ -312,7 +310,7 @@ main (int argc, char **argv)
       intmax_t sec = seconds;
       int ns = nsec;
 
-      if (! modifysec (&sec, &ns, sec_modflag))
+      if (! modifysec (&sec, &ns, modflag))
         {
           sec = -1;
           ns = -1;

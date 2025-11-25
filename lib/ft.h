@@ -1,5 +1,6 @@
 /* ft.h -- File time in NTFS, represented by 100 nanoseconds unit since
-           1601-01-01 00:00 UTC on Windows or struct timespec on Cygwin
+           1601-01-01 00:00 UTC on Windows and seconds since 1970-01-01
+           00:00 UTC on GNU/Linux or Cygwin
 
    Copyright (C) 2025 Yoshinori Kawagita.
 
@@ -25,31 +26,16 @@ typedef struct timespec FT;
 typedef FILETIME FT;
 #endif
 
-/* The maximum and minimum value of seconds since 1601-01-01 00:00 UTC
-   in file time  */
-
-#define FT_SECONDS_MAX  922337203685
-#define FT_SECONDS_MIN -922337203685
-
-/* The precision and number of digits for a nanosecond in file time  */
-
-#define FT_NSEC_PRECISION 10000000
-#define FT_NSEC_DIGITS    7
-
-/* 100 nanoseconds to 1970-01-01 00:00 UTC in file time  */
-
-#define FT_UNIXEPOCH_NSEC 116444736000000000
-
 /* Get the current time on system clock as file time in NTFS. Set its value
    into *FT and return true if successfull, otherwise, return false.  */
 
 bool currentft (FT *ft);
 
-/* Return the value of 100 nanoseconds since 1601-01-01 00:00 UTC converted
-   from the specified file time, according to SEC_MODFLAG. If conversion is
-   not performed, return 0.  */
+/* Convert the specified file time to the value of 100 nanoseconds since
+   1601-01-01 00:00 UTC according to FT_MODFLAG. Set its value into *FT_VAL
+   and return true if conversion is performed, otherwise, return false.  */
 
-intmax_t toftval (const FT *ft, int sec_modflag);
+bool ft2val (const FT *ft, int ft_modflag, intmax_t *ft_val);
 
 /* Convert the specified file time to seconds since 1970-01-01 00:00 UTC
    and 100 nanoseconds less than a second. Set its two values into *SECONDS
@@ -94,8 +80,8 @@ struct file
 
 /* Get file times for the specified struct file into FT and set the flag
    of a directory into the isdir member in *FT_FILE. If the no_dereference
-   member is true, get the time of symbolic link on Cygwin but not a file
-   referenced by it. Return true if successfull, otherwise, false.  */
+   member is true, get the time of symbolic link but not a file referenced
+   by it. Return true if successfull, otherwise, false.  */
 
 bool getft (FT ft[FT_SIZE], struct file *ft_file);
 
@@ -117,7 +103,7 @@ typedef struct
   int seconds;
   int ns;
 
-  int sec_modflag;
+  int modflag;
 
   /* Positive or negative values to modify file time   */
   bool rel_set;

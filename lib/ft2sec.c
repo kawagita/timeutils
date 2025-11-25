@@ -26,8 +26,8 @@
 #include <stdint.h>
 
 #include "ft.h"
+#include "ftsec.h"
 #include "imaxoverflow.h"
-#include "timeoverflow.h"
 
 /* Convert the specified file time to seconds since 1970-01-01 00:00 UTC
    and 100 nanoseconds less than a second. Set its two values into *SECONDS
@@ -48,7 +48,7 @@ ft2sec (const FT *ft, intmax_t *seconds, int *nsec)
                                              .LowPart = ft->dwLowDateTime };
   intmax_t ft_val;
 
-  if (IMAX_SUBTRACT_WRAPV (ft_large.QuadPart, FT_UNIXEPOCH_NSEC, &ft_val))
+  if (IMAX_SUBTRACT_WRAPV (ft_large.QuadPart, FT_UNIXEPOCH_VALUE, &ft_val))
     return false;
 
   ft_seconds = ft_val / FT_NSEC_PRECISION;
@@ -66,7 +66,7 @@ ft2sec (const FT *ft, intmax_t *seconds, int *nsec)
     }
 #endif
 
-  if (! timew_overflow (ft_seconds))
+  if (! secoverflow (ft_seconds, ft_nsec))
     {
       *seconds = ft_seconds;
       *nsec = ft_nsec;

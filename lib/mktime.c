@@ -36,9 +36,9 @@ long int tm_diff (struct tm const *a, struct tm const *b);
 #ifdef USE_TM_SELFIMPL
 # include "adjusttm.h"
 # include "adjusttz.h"
+# include "ftsec.h"
 # include "imaxoverflow.h"
 # include "intoverflow.h"
-# include "timeoverflow.h"
 #endif
 
 /* If DST is in effect or not for a time that is either skipped over or
@@ -51,10 +51,11 @@ static int trans_isdst = 1;
 extern int trans_isdst;
 #endif
 
-/* Convert the specified parameters of *TM into seconds since Unix epoch,
-   and adjust each parameter to the range of correct values. If successful,
-   return the number of converted seconds and overwrite *TM by adjusted
-   values, otherwise, return -1 and never overwrite those.  */
+/* Convert the specified parameters of time into seconds since 1970-01-01
+   00:00 UTC, and adjust each parameter to the range of correct values and
+   set those values back into *TM. Return the value of converted seconds
+   if conversion is performed, otherwise, return -1 and don't overwrite
+   members in *TM.  */
 
 intmax_t
 mktimew (TM *tm)
@@ -145,7 +146,7 @@ mktimew (TM *tm)
   /* Add the number of seconds converted from time in a day to Unix seconds. */
   if (IMAX_MULTIPLY_WRAPV (epochday, SECONDS_IN_DAY, &seconds)
       || IMAX_ADD_WRAPV (seconds, SECONDS_AT (hour, min, sec), &seconds)
-      || timew_overflow (seconds))
+      || secoverflow (seconds, 0))
     return -1;
 
   /* Adjust parameters of time for the increase or decrease of minutes by
@@ -184,7 +185,7 @@ mktimew (TM *tm)
   /* Subtract the offset of time zone from UTC seconds since Unix epoch. */
   if (IMAX_SUBTRACT_WRAPV (lct_offset, lct.tm_gmtoff, &lct_offset)
       || (lct_offset && (IMAX_ADD_WRAPV (seconds, lct_offset, &seconds)
-                     || timew_overflow (seconds))))
+                     || secoverflow (seconds, 0))))
     return -1;
 
   tm->tm_year = date.tm_year;
@@ -225,7 +226,8 @@ and adjustment is performed, othewise, \"-0001-00-00 00:00:00\".\
   fputs ("\
 \n\
 Options:\n\
-  -a   output time with week day name and time zone\n\
+  -a   output time with week day name, time zone, and \"DST\" or \"ST\"\n\
+  -d   output time with \"DST\" or \"ST\"\n\
   -I   output time in ISO 8601 format\n\
   -J   output time in Japanese era name and number\n\
   -s   output time " IN_UNIX_SECONDS "\n\
@@ -253,14 +255,17 @@ main (int argc, char **argv)
   struct tm_fmt tm_fmt = { false };
   struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .dates = dates, .times = times };
 
-  while ((c = getopt (argc, argv, ":aIJswWYzT")) != -1)
+  while ((c = getopt (argc, argv, ":adIJswWYzT")) != -1)
     {
       switch (c)
         {
         case 'a':
-          tm_fmt.weekday_name = tm_fmt.no_newline = isdst_output = true;
+          tm_fmt.weekday_name = true;
           tm_ptrs.weekday = &tm.tm_wday;
           tm_ptrs.utcoff = &tm.tm_gmtoff;
+        case 'd':
+          tm_fmt.no_newline = true;
+          isdst_output = true;
           break;
         case 'I':
           tm_fmt.iso8601 = true;
@@ -282,7 +287,6 @@ main (int argc, char **argv)
           tm_ptrs.yearday = &tm.tm_yday;
           break;
         case 'z':
-          tm_fmt.no_newline = isdst_output = true;
           tm_ptrs.utcoff = &tm.tm_gmtoff;
           break;
 # ifdef USE_TM_SELFIMPL

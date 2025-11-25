@@ -33,8 +33,8 @@
 
 /* Get file times for the specified struct file into FT and set the flag
    of a directory into the isdir member in *FT_FILE. If the no_dereference
-   member is true, get the time of symbolic link on Cygwin but not a file
-   referenced by it. Return true if successfull, otherwise, false.  */
+   member is true, get the time of symbolic link but not a file referenced
+   by it. Return true if successfull, otherwise, false.  */
 
 bool
 getft (FT ft[FT_SIZE], struct file *ft_file)
@@ -79,7 +79,7 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
 # include "errft.h"
 # include "error.h"
 # include "exit.h"
-# include "modifysec.h"
+# include "ftsec.h"
 
 char *program_name = "getft";
 
@@ -100,14 +100,16 @@ Options:\n\
 "\
   -C        round up to the smallest second that is not less than time\n\
   -F        round down to the largest second that does not exceed time\n\
-  -f        output time " IN_FILETIME "\n\
   -h        output time of symbolic link instead of referenced file\n"
 # endif
 "\
   -m        output the last write time (by default)\n\
   -P        permute digits in nanoseconds less than a second at random\n\
   -R SEED   set nanoseconds at random by SEED; If 0, use current time\n"
-# ifndef USE_TM_GLIBC
+# ifdef USE_TM_GLIBC
+"\
+  -v        output time " IN_FILETIME
+# else
 "\
   -s        output time " IN_UNIX_SECONDS
 # endif
@@ -127,7 +129,7 @@ main (int argc, char **argv)
   FT *ftp = ft + FT_MTIME;
   intmax_t ft_elapse = 0;
   int ft_frac_val = -1;
-  int ft_modflag = 0;
+  int modflag = 0;
   int seed = 0;
   int c;
   int set_num;
@@ -141,7 +143,7 @@ main (int argc, char **argv)
   ft_file.no_dereference = false;
 # endif
 
-  while ((c = getopt (argc, argv, ":abCfFhmPR:s")) != -1)
+  while ((c = getopt (argc, argv, ":abCFhmPR:sv")) != -1)
     {
       switch (c)
         {
@@ -157,28 +159,28 @@ main (int argc, char **argv)
           ft_elapse = -1;
           break;
 # else
-        case 'f':
-          seconds_output = false;
-          ft_elapse = 0;
-          break;
         case 'h':
           ft_file.no_dereference = true;
           break;
+        case 'v':
+          seconds_output = false;
+          ft_elapse = 0;
+          break;
 # endif
         case 'C':
-          ft_modflag |= SECONDS_ROUND_UP;
+          modflag |= FT_SECONDS_ROUND_UP;
           break;
         case 'F':
-          ft_modflag |= SECONDS_ROUND_DOWN;
+          modflag |= FT_SECONDS_ROUND_DOWN;
           break;
         case 'm':
           ftp = ft + FT_MTIME;
           break;
         case 'P':
-          ft_modflag |= NSEC_PERMUTE;
+          modflag |= FT_NSEC_PERMUTE;
           break;
         case 'R':
-          ft_modflag |= NSEC_RANDOM;
+          modflag |= FT_NSEC_RANDOM;
           set_num = sscannumuint (optarg, &seed, &endptr);
           if (set_num < 0)
             error (EXIT_FAILURE, 0, "invalid seed value %s", optarg);
@@ -190,7 +192,7 @@ main (int argc, char **argv)
         }
     }
 
-  if (IS_SECONDS_ROUND_UP (ft_modflag) && IS_SECONDS_ROUND_DOWN (ft_modflag))
+  if (IS_FT_SECONDS_ROUND_UP (modflag) && IS_FT_SECONDS_ROUND_DOWN (modflag))
     error (EXIT_FAILURE, 0, "cannot specify the both of rounding down and up");
   else if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
@@ -210,10 +212,10 @@ main (int argc, char **argv)
     errfile (EXIT_FAILURE, ERRNO (), "failed to get attributes of ", &ft_file);
 
   /* Generate a new sequence at once before get random values. */
-  if (IS_NSEC_RANDOMIZING (ft_modflag))
+  if (IS_FT_NSEC_RANDOMIZING (modflag))
     srandsec (--seed);
 
-  if (seconds_output)  /* Seconds since Unix epoch */
+  if (seconds_output)  /* Seconds since 1970-01-01 00:00 UTC */
     {
       int frac_val;
 
@@ -221,8 +223,8 @@ main (int argc, char **argv)
 
       if (success)
         {
-          if (ft_modflag)
-            success = modifysec (&ft_elapse, &frac_val, ft_modflag);
+          if (modflag)
+            success = modifysec (&ft_elapse, &frac_val, modflag);
 
           /* If a time is overflow for time_t of 32 bits, output "-1". */
           if (success)
@@ -233,7 +235,7 @@ main (int argc, char **argv)
         ft_elapse = -1;
     }
   else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */
-    ft_elapse = toftval (ftp, ft_modflag);
+    success = ft2val (ftp, modflag, &ft_elapse);
 
   printelapse (false, ft_elapse, ft_frac_val);
 

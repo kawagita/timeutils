@@ -31,19 +31,18 @@ long int tm_diff (struct tm const *a, struct tm const *b);
 # endif
 #endif
 
-#include "ft.h"
-#include "intoverflow.h"
-#include "timeoverflow.h"
+#include "ftsec.h"
 #include "wintm.h"
 
 #ifdef USE_TM_SELFIMPL
 # include "adjusttm.h"
 # include "adjusttz.h"
+# include "intoverflow.h"
 #endif
 
-/* Convert the specified seconds since Unix epoch to local time and set
-   parameters of time into *TM. Return the pointer to it if conversion is
-   performed, otherwise, NULL.  */
+/* Convert the specified seconds since 1970-01-01 00:00 UTC to local time
+   and set those parameters of time into *TM. Return the pointer to it
+   if conversion is performed, otherwise, NULL. */
 
 TM *
 localtimew (const intmax_t *seconds, TM *tm)
@@ -55,7 +54,7 @@ localtimew (const intmax_t *seconds, TM *tm)
 # endif
 #endif
 
-  if (timew_overflow (*seconds))
+  if (secoverflow (*seconds, 0))
     return NULL;
 
 #ifndef USE_TM_SELFIMPL
@@ -169,7 +168,8 @@ in local time zone. Display those time if conversion is performed,\n\
 otherwise, \"-0001-00-00 00:00:00\".\n\
 \n\
 Options:\n\
-  -a   output time with week day name and time zone\n\
+  -a   output time with week day name, time zone, and \"DST\" or \"ST\"\n\
+  -d   output time with \"DST\" or \"ST\"\n\
   -I   output time in ISO 8601 format\n\
   -J   output date in Japanese era name and number\n\
   -w   output time with week day name\n\
@@ -194,14 +194,17 @@ main (int argc, char **argv)
   struct tm_fmt tm_fmt = { false };
   struct tm_ptrs tm_ptrs = (struct tm_ptrs) { .dates = dates, .times = times };
 
-  while ((c = getopt (argc, argv, ":aIJwWYz")) != -1)
+  while ((c = getopt (argc, argv, ":adIJwWYz")) != -1)
     {
       switch (c)
         {
         case 'a':
-          tm_fmt.weekday_name = tm_fmt.no_newline = isdst_output = true;
+          tm_fmt.weekday_name = true;
           tm_ptrs.weekday = &tm.tm_wday;
           tm_ptrs.utcoff = &tm.tm_gmtoff;
+        case 'd':
+          tm_fmt.no_newline = true;
+          isdst_output = true;
           break;
         case 'I':
           tm_fmt.iso8601 = true;
@@ -220,7 +223,6 @@ main (int argc, char **argv)
           tm_ptrs.yearday = &tm.tm_yday;
           break;
         case 'z':
-          tm_fmt.no_newline = isdst_output = true;
           tm_ptrs.utcoff = &tm.tm_gmtoff;
           break;
         default:
