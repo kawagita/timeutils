@@ -27,11 +27,12 @@
 
 #include "ft.h"
 #include "ftsec.h"
+#include "ftval.h"
 
-/* Convert the specified seconds since 1970-01-01 00:00 UTC and 100
-   nanoseconds less than a second to file time. Set its value into *FT
-   and return true if NSEC is not less than 0 and conversion is performed,
-   otherwise, return false.  */
+/* Convert the specified seconds since 1970-01-01 00:00 UTC and nanoseconds
+   less than a second to file time. Set its value into *FT and return true
+   if NSEC isn't less than 0 and conversion is performed, otherwise, return
+   false.  */
 
 bool
 sec2ft (intmax_t seconds, int nsec, FT *ft)
@@ -40,24 +41,25 @@ sec2ft (intmax_t seconds, int nsec, FT *ft)
     {
 #ifdef USE_TM_GLIBC
       ft->tv_sec = seconds;
-      ft->tv_nsec = nsec * 100;
+      SET_FT_NSEC (ft, nsec);
 
       return true;
 #else
-      /* Subtract 1 from nanoseconds and increment seconds because tv_nsec
-         is always a positive offset even if tv_sec is negative in
+      intmax_t sec = seconds;
+      int ns = nsec;
+
+      /* Increment seconds and subtract its value from nanoseconds because
+         tv_nsec is always a positive offset even if tv_sec is negative in
          the timespec convention and this program is corresponding to it. */
-      intmax_t ft_seconds = seconds;
-      int ft_nsec = nsec;
-      if (ft_seconds < 0 && ft_nsec > 0)
+      if (sec < 0 && ns > 0)
         {
-          ft_seconds++;
-          ft_nsec -= FT_NSEC_PRECISION;
+          sec++;
+          ns -= FT_NSEC_PRECISION;
         }
 
       LARGE_INTEGER ft_large =
-        (LARGE_INTEGER) { .QuadPart = ft_seconds * FT_NSEC_PRECISION
-                                      + ft_nsec + FT_UNIXEPOCH_VALUE };
+        (LARGE_INTEGER) { .QuadPart = sec * FILETIME_SECOND_VALUE
+                                      + ns + FILETIME_UNIXEPOCH_VALUE };
 
       ft->dwHighDateTime = ft_large.HighPart;
       ft->dwLowDateTime = ft_large.LowPart;

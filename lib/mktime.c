@@ -216,8 +216,8 @@ char *program_name = "mktime";
 static void
 usage (int status)
 {
-  printusage ("mktime", " [\"" DST_NAME "\"|\"" ST_NAME "\"]\n\
-       [-]YEAR [-]MONTH [-]DAY [-]HOUR [-]MINUTE [-]SECOND\n\
+  printusage ("mktime", " [" DST_ST_NOTATION "] YEAR MONTH DAY HOUR\n\
+              MINUTE SECOND\n\
 Convert YEAR, MONTH, DAY, HOUR, MINUTES, and SECOND into seconds\n\
 elapsed since 1970-01-01 00:00 UTC and adjust each parameter of time\n\
 to the range of correct values. Display adjusted time if conversion\n\
@@ -248,8 +248,6 @@ main (int argc, char **argv)
   intmax_t seconds;
   int c;
   int status = EXIT_FAILURE;
-  int set_num;
-  char *endptr;
   bool seconds_output = false;
   bool isdst_output = false;
   struct tm_fmt tm_fmt = { false };
@@ -303,8 +301,7 @@ main (int argc, char **argv)
   argv += optind;
 
   /* Attempt to set the isdst flag from the first argument. */
-  if (argc > 0
-      && sscanisdst (*argv, &tm.tm_isdst, &endptr) && *endptr == '\0')
+  if (argc > 0 && argisdst (*argv, &tm.tm_isdst))
     {
       argc--;
       argv++;
@@ -315,10 +312,11 @@ main (int argc, char **argv)
 
   /* Set each parameter of struct tm from the rest of arguments
      but only the year must be specified. */
-  set_num = sscanreltm (argc, (const char **)argv, &tm_ptrs, &endptr);
+  char *errarg = NULL;
+  int set_num = argreltm (argc, (const char **)argv, &tm_ptrs, &errarg);
   if (set_num < 0)
-    error (EXIT_FAILURE, 0, "invalid time value %s", endptr);
-  else if (set_num == 0 || *endptr != '\0')
+    error (EXIT_FAILURE, 0, "invalid time value '%s'", errarg);
+  else if (set_num == 0 || errarg != NULL)
     usage (EXIT_FAILURE);
   else if (set_num >= 2)
     tm.tm_mon--;

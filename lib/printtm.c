@@ -20,8 +20,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "cmdtmio.h"
 #include "adjusttm.h"
+#include "cmdtmio.h"
+#include "ftsec.h"
 
 /* Abbreviations for the week day  */
 static const char *wday_abbrs[] =
@@ -160,9 +161,9 @@ printdate (int value, int width, int delim)
   return 1;
 }
 
-/* Output parameters of time included in *TM_PTRS to standard output,
-   according to the format defined for each flag set in *TM_FMT. Return
-   the number of output parameters.  */
+/* Output parameters of date or time included in *TM_PTRS to standard
+   output, according to the format defined for each flag set in *TM_FMT.
+   Return the number of output parameters.  */
 
 int
 printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
@@ -172,6 +173,7 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
   bool japanese = tm_fmt->japanese && (tm_ptrs->dates || tm_ptrs->yearday);
   bool iso8601 = tm_fmt->iso8601 && !japanese;
   int out_num = 0;
+  int i;
 
   /* Output an abbreviation for the week day. */
   if (tm_ptrs->weekday && tm_fmt->weekday_name)
@@ -188,7 +190,7 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
         printf (",%" PRIdMAX, *tm_ptrs->weekday_ordinal);
     }
 
-  /* Output the date and time. */
+  /* Output the date, calculated from the year, month, and day. */
   if (tm_ptrs->dates)
     {
       int year = *tm_ptrs->dates[0];
@@ -196,7 +198,6 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
       int date_delim = '-';
       int weeknum = -1;
       int yeardaynum = tm_ptrs->yearday ? *tm_ptrs->yearday + 1 : -1;
-      int i;
 
       if (out_num > 0)
         fputc (' ', stdout);
@@ -254,49 +255,54 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
           for (i = 1; i < 3; i++)
             out_num += printdate (*tm_ptrs->dates[i], 2, date_delim);
         }
+    }
 
-      /* Output the hour, minute, and second. */
-      if (tm_ptrs->times)
+  /* Output the hour, minute, and second. */
+  if (tm_ptrs->times)
+    {
+      if (iso8601)
+        fputc ('T', stdout);
+      else if (out_num > 0)
+        fputc (' ', stdout);
+
+      for (i = 0; i < 3; i++)
         {
-          if (tm_ptrs->dates && iso8601)
-            fputc ('T', stdout);
-          else if (out_num > 0)
-            fputc (' ', stdout);
+          if (i > 0)
+            fputc (':', stdout);
 
-          for (i = 0; i < 3; i++)
-            {
-              if (i > 0)
-                fputc (':', stdout);
-
-              printf ("%02d", *tm_ptrs->times[i]);
-              out_num++;
-            }
-
-          /* Output the fractional part of seconds. */
-          if (tm_ptrs->frac_val)
-            {
-              printf (TM_FRAC_FORMAT, *tm_ptrs->frac_val);
-              out_num++;
-            }
-
-          /* Output the UTC offset in a time zone. */
-          if (tm_ptrs->utcoff)
-            {
-              long int utcoff_min = *tm_ptrs->utcoff / 60;
-              long int abs_utcoff_min = utcoff_min;
-              if (utcoff_min == LONG_MIN)
-                abs_utcoff_min = LONG_MAX;
-              else if (utcoff_min < 0)
-                abs_utcoff_min = - utcoff_min;
-
-              if (!iso8601)
-                fputc (' ', stdout);
-
-              printf ("%c%02ld%02d", (utcoff_min < 0 ? '-' : '+'),
-                      abs_utcoff_min / 60, (int)(abs_utcoff_min % 60));
-              out_num++;
-            }
+          printf ("%02d", *tm_ptrs->times[i]);
+          out_num++;
         }
+
+      /* Output the nanoseconds less than a second. */
+      if (tm_ptrs->ns)
+        {
+          printf (FT_NSEC_FORMAT, *tm_ptrs->ns);
+          out_num++;
+        }
+    }
+
+  /* Output the UTC offset in a time zone. */
+  if (tm_ptrs->utcoff)
+    {
+      long int utcoff_min = *tm_ptrs->utcoff / 60;
+      long int abs_utcoff_min = utcoff_min;
+      if (utcoff_min == LONG_MIN)
+        abs_utcoff_min = LONG_MAX;
+      else if (utcoff_min < 0)
+        abs_utcoff_min = - utcoff_min;
+
+      if (iso8601)
+        {
+          if (out_num == 0)
+            fputc ('Z', stdout);
+        }
+      else if (out_num > 0)
+        fputc (' ', stdout);
+
+      printf ("%c%02ld%02d", (utcoff_min < 0 ? '-' : '+'),
+              abs_utcoff_min / 60, (int)(abs_utcoff_min % 60));
+      out_num++;
     }
 
   if (!tm_fmt->no_newline && out_num > 0)

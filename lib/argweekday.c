@@ -19,33 +19,57 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "cmdtmio.h"
+#include "argempty.h"
+#include "argmatch.h"
+#include "argnum.h"
+
+extern const char *arg_endptr;
 
 /* Parse the leading part of the specified argument as the week day name
    and ordinal separated by a comma and set those values into *WEEKDAY
    and *WEEKDAY_ORDINAL, storing the pointer to a following character into
-   *ENDPTR. Return 1 or 0 if a value is set or not.  */
+   *ENDPTR. Return the number of set values, otherwise, -1 if the week day
+   ordinal is outside the range of 0 to INTMAX_MAX.  */
 
 int
-sscanweekday (const char *argv,
-              int *weekday, intmax_t *weekday_ordinal, char **endptr)
+argweekday (const char *arg,
+            int *weekday, intmax_t *weekday_ordinal, char **endptr)
 {
-  const struct word_table weekday_table[] =
+  char *endp;
+  int set_num = 0;
+
+  *endptr = (char *)arg;
+
+  const struct arg_table days_of_week[] =
     {
       { "SUNDAY", 0 }, { "MONDAY", 1 }, { "TUESDAY", 2 }, { "WEDNESDAY", 3 },
       { "THURSDAY", 4 }, { "FRIDAY", 5 }, { "SATURDAY", 6 }, { NULL, -1 }
     };
   int day_number;
-  int set_num = sscanword (argv, weekday_table, 3, &day_number, endptr);
-  if (set_num > 0)
+  if (argmatch (arg, days_of_week, 3, &day_number, &endp))
     {
-      intmax_t day_ordinal = 0;
-      if (**endptr == ','
-          && sscannumimax (*endptr + 1, &day_ordinal, endptr) < 0)
-        return -1;
+      if (! argempty (endp))
+        {
+          if (*endp != ',')
+            return 0;
+
+          arg = endp + 1;
+          *endptr = (char *)arg;
+
+          intmax_t day_ordinal;
+          int ord_num = argnumimax (arg, &day_ordinal, &endp);
+          if (ord_num < 0)
+            return -1;
+          else if (ord_num == 0 || ! argempty (endp))
+            return 0;
+
+          *weekday_ordinal = day_ordinal;
+          set_num++;
+        }
 
       *weekday = day_number;
-      *weekday_ordinal = day_ordinal;
+      set_num++;
+      *endptr = (char *)arg_endptr;
     }
 
   return set_num;

@@ -48,11 +48,11 @@ print_errno_message (int errnum)
   char errbuf[1024];
 
 #ifdef USE_TM_GLIBC
-
   if (strerror_r (errnum, errbuf, sizeof errbuf) == 0)
 #else
   if (FormatMessage (FORMAT_MESSAGE_FROM_SYSTEM |
-                     FORMAT_MESSAGE_IGNORE_INSERTS,
+                     FORMAT_MESSAGE_IGNORE_INSERTS |
+                     FORMAT_MESSAGE_MAX_WIDTH_MASK,
                      NULL, (DWORD)errnum,
                      MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
                      (LPSTR)&errbuf, sizeof errbuf, NULL))

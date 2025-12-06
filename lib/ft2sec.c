@@ -27,49 +27,51 @@
 
 #include "ft.h"
 #include "ftsec.h"
+#include "ftval.h"
 #include "imaxoverflow.h"
 
 /* Convert the specified file time to seconds since 1970-01-01 00:00 UTC
-   and 100 nanoseconds less than a second. Set its two values into *SECONDS
-   and *NSEC and return true if conversion is performed, otherwise, return
+   and nanoseconds less than a second. Set those values into *SECONDS and
+   *NSEC and return true if conversion is performed, otherwise, return
    false.  */
 
 bool
 ft2sec (const FT *ft, intmax_t *seconds, int *nsec)
 {
-  intmax_t ft_seconds;
-  int ft_nsec;
+  intmax_t sec;
+  int ns;
 
 #ifdef USE_TM_GLIBC
-  ft_seconds = ft->tv_sec;
-  ft_nsec = ft->tv_nsec / 100;
+  sec = ft->tv_sec;
+  ns = GET_FT_NSEC (ft);
 #else
   LARGE_INTEGER ft_large = (LARGE_INTEGER) { .HighPart = ft->dwHighDateTime,
                                              .LowPart = ft->dwLowDateTime };
   intmax_t ft_val;
 
-  if (IMAX_SUBTRACT_WRAPV (ft_large.QuadPart, FT_UNIXEPOCH_VALUE, &ft_val))
+  if (IMAX_SUBTRACT_WRAPV (ft_large.QuadPart,
+                           FILETIME_UNIXEPOCH_VALUE, &ft_val))
     return false;
 
-  ft_seconds = ft_val / FT_NSEC_PRECISION;
-  ft_nsec = ft_val % FT_NSEC_PRECISION;
+  sec = ft_val / FILETIME_SECOND_VALUE;
+  ns = ft_val % FILETIME_SECOND_VALUE;
 
-  /* If nanoseconds is negative, add 1 to its value and decrement seconds,
+  /* If negative, decrement seconds and add its value to nanoseconds
      because tv_nsec is always a positive offset even if tv_sec is negative
      in the timespec convention and this program is corresponding to it. */
   if (ft_val < 0)
     {
-      if (IMAX_SUBTRACT_WRAPV (ft_seconds, 1, &ft_seconds))
+      if (IMAX_SUBTRACT_WRAPV (sec, 1, &sec))
         return false;
 
-      ft_nsec += FT_NSEC_PRECISION;
+      ns += FT_NSEC_PRECISION;
     }
 #endif
 
-  if (! secoverflow (ft_seconds, ft_nsec))
+  if (! secoverflow (sec, ns))
     {
-      *seconds = ft_seconds;
-      *nsec = ft_nsec;
+      *seconds = sec;
+      *nsec = ns;
 
       return true;
     }

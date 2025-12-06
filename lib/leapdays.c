@@ -266,9 +266,10 @@ leapdays (int from_year, int to_year)
 
 #ifdef TEST
 # include <stdint.h>
-# include <stdio.h>
 # include <unistd.h>
 
+# include "argempty.h"
+# include "argnum.h"
 # include "cmdtmio.h"
 # include "error.h"
 # include "exit.h"
@@ -309,7 +310,7 @@ main (int argc, char **argv)
 {
   int years[2];
   int ldays;
-  int c;
+  int c, i;
 
   while ((c = getopt (argc, argv, ":t")) != -1)
     {
@@ -329,14 +330,13 @@ main (int argc, char **argv)
   if (argc < 1 || argc > 2)
     usage (EXIT_FAILURE);
 
-  int i;
   for (i = 0; i < argc; i++)
     {
       char *endptr;
-      int set_num = sscannumint (*argv, years + i, &endptr);
+      int set_num = argnumint (*argv, years + i, &endptr);
       if (set_num < 0)
-        error (EXIT_FAILURE, 0, "invalid year %s", endptr);
-      else if (set_num == 0 || *endptr != '\0')
+        error (EXIT_FAILURE, 0, "invalid year '%s'", endptr);
+      else if (set_num == 0 || ! argempty (endptr))
         usage (EXIT_FAILURE);
       argv++;
     }
@@ -361,7 +361,7 @@ main (int argc, char **argv)
                    ? (yterm_width < yend_width ? yend_width : yterm_width)
                    : (yterm_width < ystart_width ? ystart_width : yterm_width);
       if (ywidth >= 95)
-        error (EXIT_FAILURE, 0, "invalid year width %d", ywidth);
+        error (EXIT_FAILURE, 0, "invalid year width '%d'", ywidth);
       else if (ywidth > 4)
         {
           /* Set the output width of a year or leap days in the format to

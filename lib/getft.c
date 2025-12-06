@@ -41,9 +41,9 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
 {
 #ifdef USE_TM_GLIBC
   struct stat st;
-  const char *fname = ft_file->name;
 
-  if ((ft_file->no_dereference ? lstat (fname, &st) : stat (fname, &st)) == 0)
+  if ((ft_file->no_dereference
+       ? lstat (ft_file->name, &st) : stat (ft_file->name, &st)) == 0)
     {
       ft[FT_ATIME] = st.st_atim;
       ft[FT_MTIME] = st.st_mtim;
@@ -54,13 +54,12 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
     }
 #else
   WIN32_FILE_ATTRIBUTE_DATA finfo;
-  LPCWSTR fname = ft_file->name;
 
-  if (GetFileAttributesEx (fname, GetFileExInfoStandard, &finfo))
+  if (GetFileAttributesEx (ft_file->name, GetFileExInfoStandard, &finfo))
     {
       ft[FT_ATIME] = finfo.ftLastAccessTime;
       ft[FT_MTIME] = finfo.ftLastWriteTime;
-      ft[FT_CTIME] = finfo.ftCreationTime;
+      ft[FT_BTIME] = finfo.ftCreationTime;
 
       ft_file->isdir = finfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0;
 
@@ -72,9 +71,12 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
 }
 
 #ifdef TEST
-# include <stdio.h>
+# include <stdlib.h>
+# include <string.h>
 # include <unistd.h>
 
+# include "argempty.h"
+# include "argnum.h"
 # include "cmdtmio.h"
 # include "errft.h"
 # include "error.h"
@@ -89,23 +91,29 @@ usage (int status)
   printusage ("getft", " FILE\n\
 Display FILE's time " IN_DEFAULT_TIME ".\n\
 \n\
-Options:\n\
-  -a        output the last access time\n"
-# ifndef USE_TM_GLIBC
+Options:\n"
+# ifdef USE_TM_GLIBC
 "\
-  -b        output the creation time\n\
-  -C        round up to the smallest second that is not less than time\n\
-  -F        round down to the largest second that does not exceed time\n"
+  -a        output the access time\n"
 # else
 "\
-  -C        round up to the smallest second that is not less than time\n\
-  -F        round down to the largest second that does not exceed time\n\
-  -h        output time of symbolic link instead of referenced file\n"
+  -a        output the last access time\n\
+  -b        output the creation time\n"
 # endif
 "\
-  -m        output the last write time (by default)\n\
+  -C        round up to the smallest second that is not less than time\n\
+  -F        round down to the largest second that does not exceed time\n"
+# ifdef USE_TM_GLIBC
+"\
+  -h        output time of symbolic link instead of referenced file\n\
+  -m        output the modification time (by default)\n"
+# else
+"\
+  -m        output the last write time (by default)\n"
+# endif
+"\
   -P        permute digits in nanoseconds less than a second at random\n\
-  -R SEED   set nanoseconds at random by SEED; If 0, use current time\n"
+  -R SEED   change nanoseconds at random by SEED; If 0, use current time\n"
 # ifdef USE_TM_GLIBC
 "\
   -v        output time " IN_FILETIME
@@ -136,11 +144,11 @@ main (int argc, char **argv)
   char *endptr;
   bool success = true;
   bool seconds_output = false;
-
 # ifdef USE_TM_GLIBC
+  bool no_dereference = false;
+
   seconds_output = true;
   ft_elapse = -1;
-  ft_file.no_dereference = false;
 # endif
 
   while ((c = getopt (argc, argv, ":abCFhmPR:sv")) != -1)
@@ -152,7 +160,7 @@ main (int argc, char **argv)
           break;
 # ifndef USE_TM_GLIBC
         case 'b':
-          ftp = ft + FT_CTIME;
+          ftp = ft + FT_BTIME;
           break;
         case 's':
           seconds_output = true;
@@ -160,7 +168,7 @@ main (int argc, char **argv)
           break;
 # else
         case 'h':
-          ft_file.no_dereference = true;
+          no_dereference = true;
           break;
         case 'v':
           seconds_output = false;
@@ -180,12 +188,12 @@ main (int argc, char **argv)
           modflag |= FT_NSEC_PERMUTE;
           break;
         case 'R':
-          modflag |= FT_NSEC_RANDOM;
-          set_num = sscannumuint (optarg, &seed, &endptr);
+          set_num = argnumuint (optarg, &seed, &endptr);
           if (set_num < 0)
-            error (EXIT_FAILURE, 0, "invalid seed value %s", optarg);
-          else if (set_num == 0 || *endptr != '\0')
+            error (EXIT_FAILURE, 0, "invalid seed value '%s'", optarg);
+          else if (set_num == 0 || ! argempty (endptr))
             usage (EXIT_FAILURE);
+          modflag |= FT_NSEC_RANDOM;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -197,19 +205,20 @@ main (int argc, char **argv)
   else if (argc <= optind || argc - 1 > optind)
     usage (EXIT_FAILURE);
 
-# ifndef USE_TM_GLIBC
+# ifdef USE_TM_GLIBC
+  INIT_FILE (ft_file, argv[optind], no_dereference);
+# else
   int wargc;
+
   wargv = CommandLineToArgvW (GetCommandLineW (), &wargc);
   if (wargv == NULL)
     error (EXIT_FAILURE, ERRNO (), "failed to get command arguments");
 
-  ft_file.name = wargv[optind];
-# else
-  ft_file.name = argv[optind];
+  INIT_FILE (ft_file, wargv[optind], false);
 # endif
 
   if (! getft (ft, &ft_file))
-    errfile (EXIT_FAILURE, ERRNO (), "failed to get attributes of ", &ft_file);
+    errfile (EXIT_FAILURE, ERRNO (), "failed to get attributes of", &ft_file);
 
   /* Generate a new sequence at once before get random values. */
   if (IS_FT_NSEC_RANDOMIZING (modflag))
@@ -219,19 +228,12 @@ main (int argc, char **argv)
     {
       int frac_val;
 
-      success = ft2sec (ftp, &ft_elapse, &frac_val);
+      success = ft2sec (ftp, &ft_elapse, &frac_val)
+                && (!modflag || modifysec (&ft_elapse, &frac_val, modflag));
 
       if (success)
-        {
-          if (modflag)
-            success = modifysec (&ft_elapse, &frac_val, modflag);
-
-          /* If a time is overflow for time_t of 32 bits, output "-1". */
-          if (success)
-            ft_frac_val = frac_val;
-        }
-
-      if (!success)
+        ft_frac_val = frac_val;
+      else
         ft_elapse = -1;
     }
   else  /* 100 nanoseconds since 1601-01-01 00:00 UTC */

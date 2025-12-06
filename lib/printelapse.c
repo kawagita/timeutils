@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "cmdtmio.h"
+#include "ftsec.h"
 
 /* Output the specified seconds or nanoseconds elapsed since a time to
    standard output. If FLAC_VAL is not less than 0 or NO_NEWLINE is true,
@@ -38,14 +38,14 @@ printelapse (bool no_newline, intmax_t elapse, int frac_val)
       if (++elapse == 0)
         fputc ('-', stdout);
 
-      frac_val = TM_FRAC_MAX - frac_val + 1;
+      frac_val = FT_NSEC_PRECISION - frac_val;
     }
 
   printf ("%" PRIdMAX, elapse);
   out_num++;
 
   if (frac_val >= 0)
-    printf (TM_FRAC_FORMAT, frac_val);
+    printf (FT_NSEC_FORMAT, frac_val);
 
   if (!no_newline)
     fputc ('\n', stdout);

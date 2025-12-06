@@ -50,19 +50,21 @@ void
 errfile (int status, int errnum, const char *desc, struct file *file)
 {
 #ifdef USE_TM_GLIBC
-  error (status, errnum, "%s%s", desc, file->name);
+  error (status, errnum, "%s '%s'", desc, file->name);
 #else
-  HANDLE hStderr = GetStdHandle(STD_ERROR_HANDLE);
+  HANDLE hStderr = GetStdHandle (STD_ERROR_HANDLE);
   DWORD len;
 
-  fprintf (stderr, "%s: ", program_name);
-  fputs (desc, stderr);
-
+  fflush (stdout);
+  fprintf (stderr, "%s: %s '", program_name, desc);
   WriteConsole (hStderr, file->name, wcslen (file->name), &len, NULL);
+  fputc ('\'', stderr);
 
   if (errnum)
     print_errno_message (errnum);
+  fputc ('\n', stderr);
 
+  fflush (stderr);
   if (status)
     {
       if (wargv)

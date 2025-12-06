@@ -20,60 +20,60 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "cmdtmio.h"
+#include "argempty.h"
+#include "argnum.h"
+#include "ftsec.h"
 #include "imaxoverflow.h"
+
+extern const char *arg_endptr;
 
 /* Parse the leading part of the specified argument as seconds since
    1970-01-01 00:00 UTC and fractional part for its seconds and set
-   those values into *SECONDS and *FRAC_VAL, storing the pointer to
+   those values into *SECONDS and *NSEC, storing the pointer to
    a following character into *ENDPTR. Return the number of set values,
    otherwise, -1 if a value is outside the range of its parameter.  */
 
 int
-sscanseconds (const char *argv,
-              intmax_t *seconds, int *frac_val, char **endptr)
+argseconds (const char *arg, intmax_t *seconds, int *nsec, char **endptr)
 {
-  struct numimax_prop seconds_prop = { 1, INTMAX_MIN, INTMAX_MAX, false };
-  const char *p = argv;
+  struct numimax_prop sec_prop = { 1, INTMAX_MIN, INTMAX_MAX };
+  const char *p = arg;
+  char *endp;
 
-  while (isspace (*p))
-    p++;
+  *endptr = (char *)p;
 
   if (*p == '-')
     {
-      seconds_prop.sign = -1;
+      sec_prop.sign = -1;
       p++;
     }
   else if (*p == '+')
     p++;
 
   intmax_t sec;
-  int set_num = sscannumimaxp (p, &seconds_prop, &sec, NULL, endptr);
+  int set_num = argnumimaxp (p, &sec_prop, &sec, &endp);
   if (set_num > 0)
     {
-      if (**endptr != '\0')
+      if (! argempty (endp))
         {
-          if (**endptr != '.' && **endptr != ',')
+          if (*endp != '.' && *endp != ',')
             return 0;
 
-           /* If the fractional part is leading by the negative seconds,
-              return its value added to 1.0 and must decrement seconds. */
-           const struct numint_prop frac_prop =
-             { seconds_prop.sign, 0, TM_FRAC_MAX, true };
-           int sec_decr = 0;
-           int frac_num = sscannumintp (*endptr + 1, &frac_prop,
-                                        frac_val, &sec_decr, endptr);
-           if (frac_num <= 0)
-             return frac_num;
-           else if (IMAX_SUBTRACT_WRAPV (sec, sec_decr, &sec))
+           struct numint_prop ns_prop =
+             { sec_prop.sign, 0, FT_NSEC_PRECISION - 1, FT_NSEC_DIGITS, &sec };
+           int ns;
+           int ns_num = argnumintp (endp + 1, &ns_prop, &ns, &endp);
+           if (ns_num < 0)
              return -1;
+           else if (ns_num == 0 || ! argempty (endp))
+             return 0;
 
+           *nsec = ns;
            set_num++;
         }
-      else
-        *frac_val = 0;
 
       *seconds = sec;
+      *endptr = (char *)arg_endptr;
     }
 
   return set_num;

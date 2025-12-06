@@ -1,4 +1,4 @@
-/* Input the setting name of adjusting by DST offset from an argument
+/* Check whether the argument is a empty
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -15,26 +15,18 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
+#include <ctype.h>
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
-#include "cmdtmio.h"
+const char *arg_endptr = "";
 
-/* Parse the leading part of the specified argument as the setting name
-   whether the time is adjusted by DST offset and set its value into
-   *ISDST, storing the pointer to a following character into *ENDPTR.
-   Return 1 or 0 if a value is set or not.  */
+/* Return true if the specified argument is an empty, otherwise, false.  */
 
-int
-sscanisdst (const char *argv, int *isdst, char **endptr)
+bool
+argempty (const char *arg)
 {
-  const struct word_table isdst_table[] =
-    { { DST_NAME, 1 }, { ST_NAME, 0 }, { NULL, -1 } };
-  int isdst_val;
-  int set_num = sscanword (argv, isdst_table, 0, &isdst_val, endptr);
-  if (set_num > 0)
-    *isdst = isdst_val;
+  while (isspace (*arg))
+    arg++;
 
-  return set_num;
+  return *arg == *arg_endptr;
 }

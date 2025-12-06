@@ -21,7 +21,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "cmdtmio.h"
+#include "argnum.h"
+#include "imaxoverflow.h"
 #include "intoverflow.h"
 
 #define ISDIGIT(c)  (c >= '0' && c <= '9')
@@ -32,11 +33,11 @@
    otherwise, -1 if outside the range of INT_MIN to INT_MAX.  */
 
 int
-sscannumint (const char *argv, int *num_val, char **endptr)
+argnumint (const char *arg, int *num_val, char **endptr)
 {
-  const struct numint_prop int_prop = { 0, INT_MIN, INT_MAX, false };
+  struct numint_prop int_prop = { 0, INT_MIN, INT_MAX, 0, NULL };
 
-  return sscannumintp (argv, &int_prop, num_val, NULL, endptr);
+  return argnumintp (arg, &int_prop, num_val, endptr);
 }
 
 /* Parse the leading part of the specified argument as an unsigned
@@ -45,32 +46,28 @@ sscannumint (const char *argv, int *num_val, char **endptr)
    set or not, otherwise, -1 if outside the range of 0 to INT_MAX.  */
 
 int
-sscannumuint (const char *argv, int *num_val, char **endptr)
+argnumuint (const char *arg, int *num_val, char **endptr)
 {
-  const struct numint_prop uint_prop = { 0, 0, INT_MAX, false };
+  struct numint_prop uint_prop = { 1, 0, INT_MAX, 0, NULL };
 
-  return sscannumintp (argv, &uint_prop, num_val, NULL, endptr);
+  return argnumintp (arg, &uint_prop, num_val, endptr);
 }
 
 /* Parse the leading part of the specified argument as an integer number
    and set its value into *NUM_VAL, storing the pointer to a following
-   character into *ENDPTR. If INTDECR is not NULL, add 1.0 to the value
-   and set 1 into *INTDECR when the negative fractional part is parsed,
-   otherwise, set 0. Return 1 or 0 if a value is set or not, otherwise,
-   -1 if outside the range of the min_value to max_value member in
-   *NUM_PROP.  */
+   character into *ENDPTR. Return 1 or 0 if a value is set or not,
+   otherwise, -1 if outside the range of the min_value to max_value member
+   in *NUM_PROP.  */
 
 int
-sscannumintp (const char *argv, const struct numint_prop *num_prop,
-              int *num_val, int *intdecr, char **endptr)
+argnumintp (const char *arg, struct numint_prop *num_prop,
+            int *num_val, char **endptr)
 {
-  while (isspace (*argv))
-    argv++;
-
-  *endptr = (char *)argv;
-
-  const char *p = argv;
+  const char *p = arg;
   int sign = num_prop->sign;
+  intmax_t *decr_int_value = NULL;
+
+  *endptr = (char *)p;
 
   /* Parse '-' or '+' followed by a number as a sign if SIGN is 0,
      otherwise, parse only digits. */
@@ -91,18 +88,20 @@ sscannumintp (const char *argv, const struct numint_prop *num_prop,
   if (! ISDIGIT (*p))
     return 0;
 
-  int value = sign < 0 && !num_prop->isfrac ? '0' - *p : *p - '0';
+  int frac_digits = num_prop->frac_digits;
+  int value = sign < 0 && frac_digits <= 0 ? '0' - *p : *p - '0';
   p++;
 
-  if (num_prop->isfrac)
+  if (frac_digits > 0)
     {
       bool digit_parsed = true;
-      int frac_digits = TM_FRAC_DIGITS;
+      int precision = 10;
 
       /* Accumulate the value of fractional part to the precision. */
       while (--frac_digits > 0)
         {
-          if (INT_MULTIPLY_WRAPV (value, 10, &value))
+          if ((sign < 0 && INT_MULTIPLY_WRAPV (precision, 10, &precision))
+              || INT_MULTIPLY_WRAPV (value, 10, &value))
             return -1;
           else if (digit_parsed)
             {
@@ -117,7 +116,7 @@ sscannumintp (const char *argv, const struct numint_prop *num_prop,
             }
         }
 
-      if (intdecr)
+      if (num_prop->int_value)
         {
           if (sign < 0)
             {
@@ -135,13 +134,11 @@ sscannumintp (const char *argv, const struct numint_prop *num_prop,
                   p++;
                 }
 
-              /* Add 1.0 and change fractional value to the positive,
-                 and set the decrement of integer part. */
-              value = TM_FRAC_MAX - value + 1;
-              *intdecr = 1;
+              /* Decrement the value of integer part in *INT_VALUE
+                 and add its 1 to fractional value. */
+              decr_int_value = num_prop->int_value;
+              value = precision - value;
             }
-          else
-            *intdecr = 0;
         }
       else if (sign < 0)
         value = - value;
@@ -150,7 +147,7 @@ sscannumintp (const char *argv, const struct numint_prop *num_prop,
       while (ISDIGIT (*p))
         p++;
     }
-  else  /* !num_prop->isfrac */
+  else  /* frac_digits <= 0 */
     {
       /* Convert leading digits of the argument into an integer value. */
       while (ISDIGIT (*p))
@@ -163,11 +160,10 @@ sscannumintp (const char *argv, const struct numint_prop *num_prop,
         }
     }
 
-  if (value < num_prop->min_value || value > num_prop->max_value)
+  if (value < num_prop->min_value || value > num_prop->max_value
+      || (decr_int_value
+          && IMAX_SUBTRACT_WRAPV (*decr_int_value, 1, decr_int_value)))
     return -1;
-
-  while (isspace (*p))
-    p++;
 
   *endptr = (char *)p;
   *num_val = value;

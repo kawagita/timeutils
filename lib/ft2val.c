@@ -27,6 +27,7 @@
 
 #include "ft.h"
 #include "ftsec.h"
+#include "ftval.h"
 
 /* Convert the specified file time to the value of 100 nanoseconds since
    1601-01-01 00:00 UTC according to FT_MODFLAG. Set its value into *FT_VAL
@@ -35,14 +36,15 @@
 bool
 ft2val (const FT *ft, int ft_modflag, intmax_t *ft_val)
 {
-  intmax_t ft_seconds;
-  int ft_nsec;
+  intmax_t sec;
+  int ns;
 
 #ifdef USE_TM_GLIBC
-  ft_seconds = ft->tv_sec;
-  ft_nsec = ft->tv_nsec / 100;
+  sec = ft->tv_sec;
+  ns = GET_FT_NSEC (ft);
 
-  if (secoverflow (ft_seconds, ft_nsec))
+  if (secoverflow (sec, ns)
+      || (ft_modflag && ! modifysec (&sec, &ns, ft_modflag)))
     return false;
 #else
   if (!ft_modflag)
@@ -55,22 +57,24 @@ ft2val (const FT *ft, int ft_modflag, intmax_t *ft_val)
 
       return true;
     }
-  else if (! ft2sec (ft, &ft_seconds, &ft_nsec))
+  else if (! ft2sec (ft, &sec, &ns) || ! modifysec (&sec, &ns, ft_modflag))
     return false;
 #endif
-  else if (! modifysec (&ft_seconds, &ft_nsec, ft_modflag))
-    return false;
 
-  /* Subtract 1 from nanoseconds and increment seconds because tv_nsec
-     is always a positive offset even if tv_sec is negative in
+  /* Increment seconds and subtract its value from nanoseconds because
+     tv_nsec is always a positive offset even if tv_sec is negative in
      the timespec convention and this program is corresponding to it. */
-  if (ft_seconds < 0 && ft_nsec > 0)
+  if (sec < 0 && ns > 0)
     {
-      ft_seconds++;
-      ft_nsec -= FT_NSEC_PRECISION;
+      sec++;
+      ns -= FT_NSEC_PRECISION;
     }
 
-  *ft_val = ft_seconds * FT_NSEC_PRECISION + ft_nsec + FT_UNIXEPOCH_VALUE;
+#if !defined _WIN32 && !defined __CYGWIN__
+  ns /= FT_NSEC_PRECISION / FILETIME_SECOND_VALUE;  /* for GNU/Linx */
+#endif
+
+  *ft_val = sec * FILETIME_SECOND_VALUE + ns + FILETIME_UNIXEPOCH_VALUE;
 
   return true;
 }

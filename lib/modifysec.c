@@ -30,7 +30,7 @@
 #include "ftsec.h"
 #include "imaxoverflow.h"
 
-/* Return the value of 100 nanoseconds less than a second in current time
+/* Return the value of nanoseconds less than a second in current time
    if successful, otherwise, FT_NSEC_PRECISION. */
 static int
 currentns ()
@@ -41,7 +41,7 @@ currentns ()
   if (currentft (&ft))
     {
 #ifdef USE_TM_GLIBC
-      ns = ft.tv_nsec / 100;
+      ns = GET_FT_NSEC (&ft);
 #else
       LARGE_INTEGER ft_large =
         (LARGE_INTEGER) { .HighPart = ft.dwHighDateTime,
@@ -54,12 +54,15 @@ currentns ()
   return ns;
 }
 
+#if defined _WIN32 || defined __CYGWIN__
 /* This bit complements the random value from 30240 to 32767 because its
    value can only permute half digits as the permutation key  */
 static int permutation_complement_bit = 0;
+#endif
 
 /* Generate a new sequence of pseudo-random values for the specified seed
-   number. If SEED is less than 0, use current time instead.  */
+   number in the modification of nanoseconds less than a second. If SEED
+   is less than 0, use current time instead.  */
 
 void
 srandsec (int seed)
@@ -67,19 +70,27 @@ srandsec (int seed)
   if (seed < 0)
     seed = currentns ();
 
+#if defined _WIN32 || defined __CYGWIN__
   permutation_complement_bit = seed % 2;
+#endif
 
   srand (seed);
 }
 
-#define RAND_USE_MAX        32767
-#define RAND_USE_DIGIT_SIZE 3
-#if 0
-# define RAND_REST_DIGIT_MAX 31
+#if defined _WIN32 || defined __CYGWIN__
+# define RAND_USE_MAX        32767
+# define RAND_USE_DIGIT_SIZE 3
+# if 0
+#  define RAND_REST_DIGIT_MAX 31
+# endif
+# define RAND_REST_BITS      5
+#else
+# define RAND_USE_MAX        524287
+# define RAND_USE_DIGIT_SIZE 4
+# define RAND_REST_BITS      12
 #endif
-#define RAND_REST_BITS      5
 
-/* Return the random value of 100 nanoseconds less than a second.  */
+/* Return the random value of nanoseconds less than a second.  */
 static int
 randns ()
 {
@@ -88,7 +99,8 @@ randns ()
   int i;
   for (i = 0; i < 2; i++)
     {
-      int r = rand () % (RAND_USE_MAX + 1);
+      int rand_val = rand ();
+      int r = rand_val % (RAND_USE_MAX + 1);
       int j;
       for (j = 0; j < RAND_USE_DIGIT_SIZE; j++)
         {
@@ -97,13 +109,16 @@ randns ()
           r /= 10;
         }
       rand_rest <<= RAND_REST_BITS;
+#if !defined _WIN32 && !defined __CYGWIN__
+      r = rand_val / (RAND_USE_MAX + 1);
+#endif
       rand_rest = r % (1 << RAND_REST_BITS);
     }
 
   return rand_ns + rand_rest % 10;
 }
 
-/* Return the value into which digits of the specified 100 nanoseconds less
+/* Return the value into which digits of the specified nanoseconds less
    than a second are permuted.  */
 static int
 permutens (int nsec, bool random)
@@ -117,15 +132,25 @@ permutens (int nsec, bool random)
       nsec /= 10;
     }
 
-  const int permuted_sizes[] = { 720, 120, 24, 6, 2, 1 };
+  const int permuted_sizes[] =
+    {
+#if !defined _WIN32 && !defined __CYGWIN__
+      40320, 5040,
+#endif
+      720, 120, 24, 6, 2, 1
+    };
   int permutation_key;
   if (random)
     {
+#if defined _WIN32 || defined __CYGWIN__
       int r = rand () % (RAND_USE_MAX + 1);
       if (r < 30240)
         permutation_key = r;
       else
         permutation_key = ((r % 5040) << 1) + permutation_complement_bit;
+#else
+      permutation_key = rand ();
+#endif
     }
   else
     permutation_key = currentns ();
@@ -166,7 +191,7 @@ permutens (int nsec, bool random)
   return ns;
 }
 
-/* Modify the specified value of seconds since 1970-01-01 00:00 UTC and 100
+/* Modify the specified value of seconds since 1970-01-01 00:00 UTC and
    nanoseconds less than a second, according to MODFLAG. Set its two values
    back into *SECONDS and *NSEC and return true if *NSEC is not less than 0
    and modification is performed, otherwise, return false.  */
@@ -183,7 +208,7 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
       if (negative)
         ns = FT_NSEC_PRECISION - ns;
 
-      if (ns && IS_FT_SECONDS_ROUNDING (modflag))
+      if (ns > 0 && IS_FT_SECONDS_ROUNDING (modflag))
         {
           /* Give priority to round seconds up if both are specified. */
           if (IS_FT_SECONDS_ROUND_UP (modflag)
@@ -199,7 +224,7 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
       if (IS_FT_NSEC_PERMUTE (modflag))
         ns = permutens (ns, ! ns_random);
 
-      if (ns && negative)
+      if (ns > 0 && negative)
         ns = FT_NSEC_PRECISION - ns;
 
       *seconds = sec;
@@ -212,9 +237,10 @@ modifysec (intmax_t *seconds, int *nsec, int modflag)
 }
 
 #ifdef TEST
-# include <stdio.h>
 # include <unistd.h>
 
+# include "argempty.h"
+# include "argnum.h"
 # include "cmdtmio.h"
 # include "error.h"
 # include "exit.h"
@@ -224,7 +250,7 @@ char *program_name = "modifysec";
 static void
 usage (int status)
 {
-  printusage ("modifysec", " [-]SECONDS[.nnnnnnn] NUMBER\n\
+  printusage ("modifysec", " SECONDS[" FT_NSEC_NOTATION "] NUMBER\n\
 Repeat the modification of SECONDS since 1970-01-01 00:00 UTC NUMBER\n\
 times. Display modified value if preformed, otherwise, -1.\n\
 \n\
@@ -232,7 +258,7 @@ Options:\n\
   -C        round up to the smallest second that is not less than SECONDS\n\
   -F        round down to the largest second that does not exceed SECONDS\n\
   -P        permute digits in nanoseconds less than a second at random\n\
-  -R SEED   set 100 nanoseconds at random by SEED; If 0, use current time",
+  -R SEED   change nanoseconds at random by SEED; If 0, use current time",
 true, false, 0);
   exit (status);
 }
@@ -264,12 +290,12 @@ main (int argc, char **argv)
           modflag |= FT_NSEC_PERMUTE;
           break;
         case 'R':
-          modflag |= FT_NSEC_RANDOM;
-          set_num = sscannumuint (optarg, &seed, &endptr);
+          set_num = argnumuint (optarg, &seed, &endptr);
           if (set_num < 0)
-            error (EXIT_FAILURE, 0, "invalid seed value %s", optarg);
-          else if (set_num == 0 || *endptr != '\0')
+            error (EXIT_FAILURE, 0, "invalid seed value '%s'", optarg);
+          else if (set_num == 0 || ! argempty (endptr))
             usage (EXIT_FAILURE);
+          modflag |= FT_NSEC_RANDOM;
           break;
         default:
           usage (EXIT_FAILURE);
@@ -285,19 +311,19 @@ main (int argc, char **argv)
     usage (EXIT_FAILURE);
 
   /* Set the first argument into seconds and its fractional part. */
-  set_num = sscanseconds (*argv, &seconds, &nsec, &endptr);
+  set_num = argseconds (*argv, &seconds, &nsec, &endptr);
   if (set_num < 0)
-    error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
-  else if (set_num == 0 || *endptr != '\0')
+    error (EXIT_FAILURE, 0, "invalid seconds '%s'", *argv);
+  else if (set_num == 0)
     usage (EXIT_FAILURE);
 
   /* Set the next argument of seconds into the repeat number if specified. */
   if (--argc > 0)
     {
-      set_num = sscannumuint (*++argv, &repeat_num, &endptr);
+      set_num = argnumuint (*++argv, &repeat_num, &endptr);
       if (set_num < 0)
-        error (EXIT_FAILURE, 0, "invalid repeat number %s", *argv);
-      else if (set_num == 0 || *endptr != '\0')
+        error (EXIT_FAILURE, 0, "invalid repeat number '%s'", *argv);
+      else if (set_num == 0 || ! argempty (endptr))
         usage (EXIT_FAILURE);
     }
 

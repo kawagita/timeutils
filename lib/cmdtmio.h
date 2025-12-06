@@ -1,5 +1,5 @@
-/* cmdtmio.h -- Inputting or outputting a number or parameters of time
-                from or to the command line
+/* cmdtmio.h -- Inputting or outputting parameters of time from or to
+                the command line
 
    Copyright (C) 2025 Yoshinori Kawagita.
 
@@ -17,100 +17,7 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-/* The property of an integer number parsed from the string  */
-
-struct numint_prop
-{
-  /* If zero, parse '-' or '+' as a sign, otherwise, parse only digits
-     as the positive or negative value */
-  int sign;
-  int min_value;
-  int max_value;
-  /* If true, parse the string as fractional part for a leading integer
-     and skip digits over this value */
-  bool isfrac;
-};
-
-/* Parse the leading part of the specified argument as an integer number
-   and set its value into *NUM_VAL, storing the pointer to a following
-   character into *ENDPTR. Return 1 or 0 if a value is set or not,
-   otherwise, -1 if outside the range of INT_MIN to INT_MAX.  */
-
-int sscannumint (const char *argv, int *num_val, char **endptr);
-
-/* Parse the leading part of the specified argument as an unsigned
-   integer number and set its value into *NUM_VAL, storing the pointer
-   to a following character into *ENDPTR. Return 1 or 0 if a value is
-   set or not, otherwise, -1 if outside the range of 0 to INT_MAX.  */
-
-int sscannumuint (const char *argv, int *num_val, char **endptr);
-
-/* Parse the leading part of the specified argument as an integer number
-   and set its value into *NUM_VAL, storing the pointer to a following
-   character into *ENDPTR. If INTDECR is not NULL, add 1.0 to the value
-   and set 1 into *INTDECR when the negative fractional part is parsed,
-   otherwise, set 0. Return 1 or 0 if a value is set or not, otherwise,
-   -1 if outside the range of the min_value to max_value member in
-   *NUM_PROP.  */
-
-int sscannumintp (const char *argv, const struct numint_prop *num_prop,
-                  int *num_val, int *intdecr, char **endptr);
-
-/* The property of an intmax_t number parsed from the string,
-   including members same as struct numint_prop  */
-
-struct numimax_prop
-{
-  int sign;
-  intmax_t min_value;
-  intmax_t max_value;
-  bool isfrac;
-};
-
-/* Parse the leading part of the specified argument as an intmax_t number
-   and set its value into *NUM_VAL, storing the pointer to a following
-   character into *ENDPTR. Return 1 or 0 if a value is set or not,
-   otherwise, -1 if outside the range of INT_MIN to INT_MAX.  */
-
-int sscannumimax (const char *argv, intmax_t *num_val, char **endptr);
-
-/* Parse the leading part of the specified argument as an unsigned
-   intmax_t number and set its value into *NUM_VAL, storing the pointer
-   to a following character into *ENDPTR. Return 1 or 0 if a value is
-   set or not, otherwise, -1 if outside the range of 0 to INT_MAX.  */
-
-int sscannumuimax (const char *argv, intmax_t *num_val, char **endptr);
-
-/* Parse the leading part of the specified argument as an intmax_t number
-   and set its value into *NUM_VAL, storing the pointer to a following
-   character into *ENDPTR. If INTDECR is not NULL, add 1.0 to the value
-   and set 1 into *INTDECR when the negative fractional part is parsed,
-   otherwise, set 0. Return 1 or 0 if a value is set or not, otherwise,
-   -1 if outside the range of the min_value to max_value member in
-   *NUM_PROP.  */
-
-int sscannumimaxp (const char *argv, const struct numimax_prop *num_prop,
-                   intmax_t *num_val, int *intdecr, char **endptr);
-
-/* The table of a word name and value  */
-
-struct word_table
-{
-  const char *name;  /* Must be NULL if not followed by the next word */
-  int value;
-};
-
-/* Compare the leading part of the specified argument with a name member
-   in *TABLE case-insensitively and set its value member into *VALUE
-   if equal to the whole or ABBRLEN characters, storing the pointer to
-   a following character into the *ENDPTR. Continue to compare with
-   following tables unless the name member is not NULL. Return 1 or 0
-   if a value is set or not.  */
-
-int sscanword (const char *argv, const struct word_table *table,
-               int abbrlen, int *value, char **endptr);
-
-/* Pointers to parameters of time input from standard input or output to
+/* Pointers to parameters of time input from arguments or output to
    standard output in the command line  */
 
 struct tm_ptrs
@@ -121,63 +28,64 @@ struct tm_ptrs
   int *yearday;
   int **times;
   intmax_t **rel_times;
-  int *frac_val;
+  int *ns;
   long int *utcoff;
 };
 
-#ifndef TM_YEAR_BASE
-# define TM_YEAR_BASE 1900
-#endif
+/* Parse the leading part of the specified argument as ISO 8601 format
+   and set those values into members included in *TM_PTRS, storing
+   the pointer to a following character into *ENDPTR. The date, time,
+   and/or UTC offset is input in ISO 8601 format by below notation;
 
-/* The maximum value and digits of fractional part in seconds  */
+   [YYYY-MM-DD][Thh:mm:dd[.nnnnnnn]][Z|+hhmm|-hhmm]
 
-#define TM_FRAC_MAX    9999999
-#define TM_FRAC_DIGITS       7
+   Each part must conform to this format when specified, and if so,
+   return the number of set values. Otherwise, if incorrect format,
+   return 0, or if a value is outside the range of its parameter,
+   return -1. However specially accept "Z+hhmm" and "Z-hhmm" in UTC
+   offset if only it is given.  */
 
-/* Parse the leading part of the specified argument as parameters of time
-   included in *TM_PTRS and set those values into the member, storing
-   the pointer to a following character into *ENDPTR. Return the number
-   of set values, otherwise, -1 if a value is outside the range of its
-   parameter.  */
+int argtmiso8601 (const char *arg, struct tm_ptrs *tm_ptrs, char **endptr);
 
-int sscantm (const char *argv, struct tm_ptrs *tm_ptrs, char **endptr);
+/* Parse the specified arguments as the relative year, month, day, hour,
+   minutes, seconds, and nanoseconds in order and set those values into
+   members included in *TM_PTRS, storing the pointer to an error argument
+   into *ERRARG if not set. Return the number of set values, otherwise, -1
+   if a value is outside the range of its parameter.  */
 
-/* Parse the specified arguments as relative parameters of time included
-   in *TM_PTRS and set those values into the member, storing the pointer
-   to a following character into *ENDPTR. Return the number of set values,
-   otherwise, -1 if a value is outside the range of its parameter.  */
-
-int sscanreltm (int argc, const char **argv,
-                struct tm_ptrs *tm_ptrs, char **endptr);
+int argreltm (int argc, const char **argv,
+              struct tm_ptrs *tm_ptrs, char **errarg);
 
 /* Parse the leading part of the specified argument as seconds since
    1970-01-01 00:00 UTC and fractional part for its seconds and set
-   those values into *SECONDS and *FRAC_VAL, storing the pointer to
+   those values into *SECONDS and *NSEC, storing the pointer to
    a following character into *ENDPTR. Return the number of set values,
    otherwise, -1 if a value is outside the range of its parameter.  */
 
-int sscanseconds (const char *argv,
-                  intmax_t *seconds, int *frac_val, char **endptr);
+int argseconds (const char *arg, intmax_t *seconds, int *nsec, char **endptr);
 
 /* Parse the leading part of the specified argument as the week day name
    and ordinal separated by a comma and set those values into *WEEKDAY
    and *WEEKDAY_ORDINAL, storing the pointer to a following character into
-   *ENDPTR. Return 1 or 0 if a value is set or not.  */
+   *ENDPTR. Return the number of set values, otherwise, -1 if the week day
+   ordinal is outside the range of 0 to INTMAX_MAX.  */
 
-int sscanweekday (const char *argv,
-                  int *weekday, intmax_t *weekday_ordinal, char **endptr);
+int argweekday (const char *arg,
+                int *weekday, intmax_t *weekday_ordinal, char **endptr);
 
-/* The name of settings whether the time is adjusted by DST offset  */
+/* The name of settings whether the time is adjusted by DST offset in
+   a time zone  */
 
 #define DST_NAME "DST"
 #define ST_NAME  "ST"
 
-/* Parse the leading part of the specified argument as the setting name
-   whether the time is adjusted by DST offset and set its value into
-   *ISDST, storing the pointer to a following character into *ENDPTR.
-   Return 1 or 0 if a value is set or not.  */
+#define DST_ST_NOTATION "\"DST\"|\"ST\""
 
-int sscanisdst (const char *argv, int *isdst, char **endptr);
+/* Parse the leading part of the specified argument as the setting name
+   whether the time is adjusted by DST offset in a time zone and set its
+   value into *ISDST. Return true if "DST" or "ST".  */
+
+bool argisdst (const char *arg, int *isdst);
 
 /* The description in Unix seconds or file time  */
 
@@ -210,19 +118,15 @@ struct tm_fmt
   bool no_newline;
 };
 
-/* The format of fractional part in seconds  */
-
-#define TM_FRAC_FORMAT ".%07d"
-
-/* Output parameters of time included in *TM_PTRS to standard output,
-   according to the format defined for each flag set in *TM_FMT. Return
-   the number of output parameters.  */
+/* Output parameters of date or time included in *TM_PTRS to standard
+   output, according to the format defined for each flag set in *TM_FMT.
+   Return the number of output parameters.  */
 
 int printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs);
 
-/* Output relative parameters of time included in *TM_PTRS with a leading
-   space to standard output. If NO_NEWLINE is true, output the trailing
-   newline. Return the number of output parameters.  */
+/* Output parameters of date and time included in *TM_PTRS with a leading
+   space in order to standard output. If NO_NEWLINE is true, output
+   the trailing newline. Return the number of output parameters.  */
 
 int printreltm (bool no_newline, const struct tm_ptrs *tm_ptrs);
 

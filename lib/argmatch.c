@@ -1,4 +1,4 @@
-/* Compare the argument with the word in tables
+/* Compare an argument with the name in tables
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -18,61 +18,52 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "cmdtmio.h"
+#include "argmatch.h"
 
 /* Compare the leading part of the specified argument with a name member
    in *TABLE case-insensitively and set its value member into *VALUE
    if equal to the whole or ABBRLEN characters, storing the pointer to
-   a following character into the *ENDPTR. Continue to compare with
-   following tables unless the name member is not NULL. Return 1 or 0
-   if a value is set or not.  */
+   a following character into *ENDPTR. Continue to compare with following
+   tables unless the name member is not NULL. Return true if matched.  */
 
-int
-sscanword (const char *argv, const struct word_table *table,
-           int abbrlen, int *value, char **endptr)
+bool
+argmatch (const char *arg, const struct arg_table *table,
+          int abbrlen, int *value, char **endptr)
 {
-  while (isspace (*argv))
-    argv++;
+  const char *p = arg;
 
-  *endptr = (char *)argv;
+  *endptr = (char *)p;
 
-  if (! ispunct (*argv) && *argv != '\0')
+  if (! isspace (*p) && ! ispunct (*p) && *p != '\0')
     {
       while (table->name)
         {
-          const char *name = table->name;
-          int name_len = strlen (name);
+          int name_len = strlen (table->name);
           if (name_len > 0)
             {
-              const char *p = argv;
               int len = 0;
 
               /* Input characters from the specified argument to a space
                  or punctuation and compare it with the word in tables. */
               do
                 {
-                  if (toupper (*p) != toupper (name[len]))
+                  if (toupper (*p) != toupper (table->name[len]))
                     break;
                   p++;
                 }
               while (++len < name_len
                      && ! isspace (*p) && ! ispunct (*p) && *p != '\0');
 
-             if (len == name_len || len == abbrlen)
+             if ((len == name_len || len == abbrlen)
+                 && (isspace (*p) || ispunct (*p) || *p == '\0'))
                {
-                 bool spaced = isspace (*p);
-                 if (spaced || ispunct (*p) || *p == '\0')
-                   {
-                     if (spaced)
-                       while (isspace (*++p));
+                 *endptr = (char *)p;
+                 *value = table->value;
 
-                     *endptr = (char *)p;
-                     *value = table->value;
-
-                     return 1;
-                   }
+                 return true;
                }
             }
 
@@ -80,5 +71,38 @@ sscanword (const char *argv, const struct word_table *table,
         }
     }
 
-  return 0;
+  return false;
+}
+
+#define _(msgid) msgid
+
+/* Output the list of valid arguments for *TABLE to standard error.  */
+
+void
+argmatch_valid (const struct arg_table *table)
+{
+  fputs (_("Valid arguments are:"), stderr);
+
+  if (table->name)
+    {
+      int value = table->value < 0 ? 0 : -1;
+      do
+        {
+          if (value != table->value)
+            {
+              /* Start to output new line of arguments for this value. */
+              fprintf (stderr, _("\n  - '%s'"), table->name);
+              value = table->value;
+            }
+          else
+            fprintf (stderr, ", '%s'", table->name);
+
+          table++;
+        }
+      while (table->name);
+    }
+  else
+    fputs (_(" Nothing."), stderr);
+
+  fputc ('\n', stderr);
 }

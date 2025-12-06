@@ -45,7 +45,6 @@ currentft (FT *ft)
 }
 
 #ifdef TEST
-# include <stdio.h>
 # include <unistd.h>
 
 # include "cmdtmio.h"
@@ -59,11 +58,9 @@ Display current time " IN_DEFAULT_TIME ".\n\
 \n\
 Options:\n"
 # ifdef USE_TM_GLIBC
-"\
-  -v   output time " IN_FILETIME
+"  -v   output time " IN_FILETIME
 # else
-"\
-  -s   output time " IN_UNIX_SECONDS
+"  -s   output time " IN_UNIX_SECONDS
 # endif
 , true, false, 0);
   exit (status);
@@ -117,7 +114,6 @@ main (int argc, char **argv)
 
           success = ft2sec (&ft, &ft_elapse, &frac_val);
 
-          /* If a time is overflow for time_t of 32 bits, output "-1". */
           if (success)
             ft_frac_val = frac_val;
         }

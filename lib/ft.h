@@ -38,16 +38,16 @@ bool currentft (FT *ft);
 bool ft2val (const FT *ft, int ft_modflag, intmax_t *ft_val);
 
 /* Convert the specified file time to seconds since 1970-01-01 00:00 UTC
-   and 100 nanoseconds less than a second. Set its two values into *SECONDS
-   and *NSEC and return true if conversion is performed, otherwise, return
+   and nanoseconds less than a second. Set those values into *SECONDS and
+   *NSEC and return true if conversion is performed, otherwise, return
    false.  */
 
 bool ft2sec (const FT *ft, intmax_t *seconds, int *nsec);
 
-/* Convert the specified seconds since 1970-01-01 00:00 UTC and 100
-   nanoseconds less than a second to file time. Set its value into *FT
-   and return true if NSEC is not less than 0 and conversion is performed,
-   otherwise, return false.  */
+/* Convert the specified seconds since 1970-01-01 00:00 UTC and nanoseconds
+   less than a second to file time. Set its value into *FT and return true
+   if NSEC isn't less than 0 and conversion is performed, otherwise, return
+   false.  */
 
 bool sec2ft (intmax_t seconds, int nsec, FT *ft);
 
@@ -61,7 +61,7 @@ bool sec2ft (intmax_t seconds, int nsec, FT *ft);
 
 #define FT_ATIME 0  /* Last access time */
 #define FT_MTIME 1  /* Last write time */
-#define FT_CTIME 2  /* Creation time */
+#define FT_BTIME 2  /* Creation time */
 
 /* The structure of a file  */
 
@@ -78,6 +78,27 @@ struct file
   bool isdir;
 };
 
+/* The macro of functions for struct file  */
+
+#ifdef USE_TM_GLIBC
+# define IS_STDOUT_NAME(fname) (strcmp (fname, "-") == 0)
+# define IS_INVALID_FILE(f)    ((f)->fd < 0)
+
+# define INIT_FILE(f,fname,no_deref) \
+           f = IS_STDOUT_NAME (fname) \
+               ? (struct file) { .name = fname, .fd = STDOUT_FILENO, \
+                                 .no_dereference = true } \
+               : (struct file) { .name = fname, .fd = -1, \
+                                 .no_dereference = no_deref }
+
+#else
+# define IS_STDOUT_NAME(fname) false
+# define IS_INVALID_FILE(f)    ((f)->hFile == INVALID_HANDLE_VALUE)
+
+# define INIT_FILE(f,fname,no_deref) \
+           f = (struct file) { .name = fname, .hFile = INVALID_HANDLE_VALUE }
+#endif
+
 /* Get file times for the specified struct file into FT and set the flag
    of a directory into the isdir member in *FT_FILE. If the no_dereference
    member is true, get the time of symbolic link but not a file referenced
@@ -89,8 +110,7 @@ bool getft (FT ft[FT_SIZE], struct file *ft_file);
 
 typedef struct
 {
-  /* If the datetime_unset member is true, any parameter of date and time
-     in this structure is not set into file time  */
+  /* If true, any parameters have not been set into this structure  */
   bool datetime_unset;
 
   /* The date and time adapted to file time before the modification  */
@@ -102,8 +122,6 @@ typedef struct
   int minutes;
   int seconds;
   int ns;
-
-  int modflag;
 
   /* Positive or negative values to modify file time   */
   bool rel_set;
@@ -119,26 +137,28 @@ typedef struct
   int day_number;
   intmax_t day_ordinal;
 
-  /* The offset of a time zone in seconds for file time  */
+  /* The UTC offset of a time zone in seconds for file time  */
   bool tz_set;
-  int tz_offset;
+  int tz_utcoff;
 
   /* The value set into the isdst member in struct tm given to mktime
      function if file time is changed for local time zone  */
   int lctz_isdst;
+
+  int modflag;  /* Modification flags for file time  */
 } FT_CHANGE;
 
-/* Calculate file time from *NOW by members in *TM_CHG and set its value
-   into *FT. If the datetime_unset member is true, not calculate for *NOW
-   and copy it to *FT directly. Return true if not overflow, otherwise,
-   false.  */
+/* Calculate file time for *NOW by members in *TM_CHG and set its value
+   into *FT. If the datetime_unset member is true, don't calculate and copy
+   *NOW changed by the modflag member to *FT. Return true if not overflow,
+   otherwise, false.  */
 
 bool calcft (FT *ft, const FT *now, const FT_CHANGE *ft_chg);
 
 /* Change the specified file time by members in *TM_CHG and set its value
-   to the file specified by *FT_FILE. If an address in the array pointed
-   to FT_NOWP is NULL, its corresponding file time is not changed. Return
-   true if successfull, otherwise, false.  */
+   to the file specified by *FT_FILE. If TM_CHG is NULL, copy directly it
+   to the file, or if a pointer included in FT_NOWP is NULL, set its time
+   to current time. Return true if successfull, otherwise, false.  */
 
 bool setft (struct file *ft_file, const FT *ft_nowp[FT_SIZE],
             const FT_CHANGE *ft_chg);
@@ -147,20 +167,20 @@ bool setft (struct file *ft_file, const FT *ft_nowp[FT_SIZE],
 
 typedef union
 {
-  /* Parameters of Unix time, specified by "@ SECONDS[.nnnnnnn]"  */
-  struct
-    {
-      bool seconds_set;
-      intmax_t seconds;
-      int nsec;
-    } timespec;
+  bool timespec_seen;
+
+  /* File time specified by "@ SECONDS[.nnnnnnn]"  */
+  struct {
+    bool seen;
+    FT ft;
+  } timespec;
 
   /* Parameters by which file time is changed  */
-  FT_CHANGE ft_change;
+  FT_CHANGE change;
 } FT_PARSING;
 
 /* Parse the specified string as parameters of setting file time and set
-   those values into *FT_PARSING. Return true if its string is correct,
+   those values into *FT_PARSING. Return true if parsing is completed,
    otherwise, false.  */
 
 bool parseft (FT_PARSING *ft_parsing, const char *str);

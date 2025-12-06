@@ -112,7 +112,7 @@ adjustday (struct dtm *tm)
 }
 
 #ifdef TEST
-# include <stdio.h>
+# include <stdlib.h>
 # include <unistd.h>
 
 # include "cmdtmio.h"
@@ -124,7 +124,7 @@ char *program_name = "adjustday";
 static void
 usage (int status)
 {
-  printusage ("adjustday", " [-]YEAR [-]MONTH [-]DAY\n\
+  printusage ("adjustday", " YEAR MONTH DAY\n\
 Bring DAY into the range of 0 to the last day in a month and adjust\n\
 YEAR and MONTH by carried value. Display those date if adjustment is\n\
 performed, othewise, \"-0001-00-00\".\n\
@@ -182,11 +182,11 @@ main (int argc, char **argv)
 
   /* Set each parameter of date for the value specified to arguments
      but year must be specified. */
-  char *endptr;
-  int set_num = sscanreltm (argc, (const char **)argv, &tm_ptrs, &endptr);
+  char *errarg = NULL;
+  int set_num = argreltm (argc, (const char **)argv, &tm_ptrs, &errarg);
   if (set_num < 0)
-    error (EXIT_FAILURE, 0, "invalid date value %s", endptr);
-  else if (set_num == 0 || *endptr != '\0')
+    error (EXIT_FAILURE, 0, "invalid date value %s", errarg);
+  else if (set_num == 0 || errarg != NULL)
     usage (EXIT_FAILURE);
   else if (set_num >= 2)
     tm.tm_mon--;

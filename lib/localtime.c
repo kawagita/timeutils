@@ -150,9 +150,9 @@ localtimew (const intmax_t *seconds, TM *tm)
 }
 
 #ifdef TEST
-# include <stdio.h>
 # include <unistd.h>
 
+# include "argempty.h"
 # include "cmdtmio.h"
 # include "error.h"
 # include "exit.h"
@@ -162,7 +162,7 @@ char *program_name = "localtime";
 static void
 usage (int status)
 {
-  printusage ("localtime", " [-]SECONDS[.nnnnnnn]\n\
+  printusage ("localtime", " SECONDS[" FT_NSEC_NOTATION "]\n\
 Convert SECONDS since 1970-01-01 00:00 UTC into parameters of time\n\
 in local time zone. Display those time if conversion is performed,\n\
 otherwise, \"-0001-00-00 00:00:00\".\n\
@@ -237,16 +237,16 @@ main (int argc, char **argv)
 
   /* Set the argument into seconds and its fractional part. */
   char *endptr;
-  int set_num = sscanseconds (*argv, &seconds, &nsec, &endptr);
+  int set_num = argseconds (*argv, &seconds, &nsec, &endptr);
   if (set_num < 0)
-    error (EXIT_FAILURE, 0, "invalid seconds %s", *argv);
-  else if (set_num == 0 || *endptr != '\0')
+    error (EXIT_FAILURE, 0, "invalid seconds '%s'", *argv);
+  else if (set_num == 0 || ! argempty (endptr))
     usage (EXIT_FAILURE);
 
   if (localtimew (&seconds, &tm))
     {
       if (set_num >= 2)
-        tm_ptrs.frac_val = &nsec;
+        tm_ptrs.ns = &nsec;
 
       tm.tm_year += TM_YEAR_BASE;
       tm.tm_mon++;

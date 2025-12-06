@@ -4,29 +4,31 @@ CFLAGS=-std=c11 -O2 -Wformat -Werror
 GCC=gcc
 GFLAGS=-std=gnu11 -O2 -Wformat -Werror
 
-ADJUSTDAY_OBJS=adjusttm.o error.o imaxoverflow.o intoverflow.o leapdays.o \
-               printtm.o printusage.o sscannumimax.o sscannumint.o \
-               sscanreltm.o weekday.o yeardays.o
+ADJUSTDAY_OBJS=adjusttm.o argempty.o argnumimax.o argnumint.o argreltm.o \
+               error.o imaxoverflow.o intoverflow.o leapdays.o printtm.o \
+               printusage.o weekday.o yeardays.o
 
-GETFT_OBJS=currentft.o errft.o ft2sec.o ft2val.o imaxoverflow.o intoverflow.o \
-           modifysec.o printelapse.o printusage.o secoverflow.o sscannumint.o
+GETFT_OBJS=argempty.o argnumint.o currentft.o errft.o ft2sec.o ft2val.o \
+           imaxoverflow.o intoverflow.o modifysec.o printelapse.o \
+           printusage.o secoverflow.o
 
 CURRENTFT_OBJS=error.o ft2sec.o ft2val.o imaxoverflow.o modifysec.o \
-               printelapse.o printusage.o secoverflow.o yeardays.o
+               printelapse.o printusage.o secoverflow.o
 
-LEAPDAYS_OBJS=error.o intoverflow.o printusage.o sscannumint.o
+LEAPDAYS_OBJS=argempty.o argnumint.o error.o imaxoverflow.o intoverflow.o \
+              printusage.o
 
-LOCALTIME_OBJS=error.o imaxoverflow.o intoverflow.o printisdst.o printtm.o \
-               printusage.o secoverflow.o sscannumimax.o sscannumint.o \
-               sscanseconds.o yeardays.o
+LOCALTIME_OBJS=argempty.o argnumimax.o argnumint.o argseconds.o error.o \
+               imaxoverflow.o intoverflow.o printisdst.o printtm.o \
+               printusage.o secoverflow.o yeardays.o
 
-MKTIME_OBJS=error.o imaxoverflow.o intoverflow.o printelapse.o printisdst.o \
-            printtm.o printusage.o sscanisdst.o sscannumimax.o sscannumint.o \
-            sscanreltm.o sscanword.o yeardays.o
+MKTIME_OBJS=argempty.o argisdst.o argmatch.o argnumimax.o argnumint.o \
+            argreltm.o error.o imaxoverflow.o intoverflow.o printelapse.o \
+            printisdst.o printtm.o printusage.o yeardays.o
 
-MODIFYSEC_OBJS=currentft.o error.o imaxoverflow.o intoverflow.o printelapse.o \
-               printusage.o secoverflow.o sscannumimax.o sscannumint.o \
-               sscanseconds.o
+MODIFYSEC_OBJS=argempty.o argnumimax.o argnumint.o argseconds.o currentft.o \
+               error.o imaxoverflow.o intoverflow.o printelapse.o \
+               printusage.o secoverflow.o
 
 # Rules compiling for Windows 64-bits to use self-implemented functions
 %.o : %.c

@@ -21,9 +21,9 @@
 
 #include "cmdtmio.h"
 
-/* Output relative parameters of time included in *TM_PTRS with a leading
-   space to standard output. If NO_NEWLINE is true, output the trailing
-   newline. Return the number of output parameters.  */
+/* Output parameters of date and time included in *TM_PTRS with a leading
+   space in order to standard output. If NO_NEWLINE is true, output
+   the trailing newline. Return the number of output parameters.  */
 
 int
 printreltm (bool no_newline, const struct tm_ptrs *tm_ptrs)
@@ -52,10 +52,10 @@ printreltm (bool no_newline, const struct tm_ptrs *tm_ptrs)
               out_num++;
             }
 
-          /* Output the relative value of fractional part in seconds. */
-          if (tm_ptrs->frac_val)
+          /* Output the relative value of nanoseconds less than a second. */
+          if (tm_ptrs->ns)
             {
-              printf (" %d", *tm_ptrs->frac_val);
+              printf (" %d", *tm_ptrs->ns);
               out_num++;
             }
         }
