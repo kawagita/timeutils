@@ -82,6 +82,7 @@ struct file
 
 #ifdef USE_TM_GLIBC
 # define IS_STDOUT_NAME(fname) (strcmp (fname, "-") == 0)
+# define IS_FILE_STDOUT(f)     IS_STDOUT_NAME ((f)->name)
 # define IS_INVALID_FILE(f)    ((f)->fd < 0)
 
 # define INIT_FILE(f,fname,no_deref) \
@@ -91,12 +92,25 @@ struct file
                : (struct file) { .name = fname, .fd = -1, \
                                  .no_dereference = no_deref }
 
+# define OPEN_FILE(f) \
+           if (! (f)->no_dereference) \
+             (f)->fd = fd_reopen (STDIN_FILENO, (f)->name, \
+                                  O_WRONLY | O_CREAT | O_NONBLOCK | O_NOCTTY, \
+                                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP \
+                                  | S_IROTH | S_IWOTH)
+
 #else
 # define IS_STDOUT_NAME(fname) false
+# define IS_FILE_STDOUT(f)     false
 # define IS_INVALID_FILE(f)    ((f)->hFile == INVALID_HANDLE_VALUE)
 
 # define INIT_FILE(f,fname,no_deref) \
            f = (struct file) { .name = fname, .hFile = INVALID_HANDLE_VALUE }
+
+# define OPEN_FILE(f) \
+           (f)->hFile = CreateFile ((f)->name, GENERIC_READ | GENERIC_WRITE, \
+                                    0, NULL, OPEN_ALWAYS, (f)->isdir \
+                                    ? FILE_FLAG_BACKUP_SEMANTICS : 0, NULL)
 #endif
 
 /* Get file times for the specified struct file into FT and set the flag

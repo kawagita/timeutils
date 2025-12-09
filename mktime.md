@@ -1,9 +1,9 @@
-mktime コマンド
-===============
+mktime
+======
 
 **使用法**
 ```
-  mktime [OPTION]... ["DST"|"ST"] [-]YEAR [-]MONTH [-]DAY [-]HOUR [-]MINUTE [-]SECOND
+  mktime [OPTION]... ["DST"|"ST"] YEAR MONTH DAY HOUR MINUTE SECOND
 ```
 
 mktime コマンドは自作した mktime 関数のテスト用コマンドです。引数にローカル時刻の年、月、日、時、分、秒（負の値も可能）を指定すると、それらの値を正しい範囲に修正して結果を表示します。`"DST"` や `"ST"` で指定した時刻に夏時間が有効かどうかを指定できます。
@@ -23,6 +23,7 @@ GLIBC の mktime コマンドは `time_t` 型が 1970-01-01 00:00 UTC からの�
 
 自作関数コマンドは `FILETIME` 構造体で表せる時刻を指定できます。Windows 2000 や XP は Win32 の GetTimeZoneInformation 関数しか使えず、タイムゾーンに関して MSVCRT と同じです。しかし、Vista 以降は GetTimeZoneInformationForYear 関数の使用（Vista でビルドした場合は不可）で、指定する年に対してオフセットは変わらないものの、主要なタイムゾーンで 2000 年代に行われた夏時間期間の変更が反映されます。
 
+<a id="spec"></a>
 ### mktime の仕様
 
 POSIX で定められた [mktime](https://pubs.opengroup.org/onlinepubs/9799919799/functions/mktime.html) 関数は引数で `tm` 構造体へのポインタを受け取り、含まれる `tm_year`、 `tm_mon`、 `tm_mday`、 `tm_hour`、 `tm_min`、 `tm_sec` メンバの値をローカル時刻の年、月、日、時、分、秒として 1970-01-01 00:00 UTC からの秒に変換して返します。`tm` 構造体はその他に `tm_wday`、`tm_yday`、`tm_isdst` メンバを含みます。
@@ -33,6 +34,7 @@ POSIX で定められた [mktime](https://pubs.opengroup.org/onlinepubs/97999197
 
 夏時間が有効な時に `tm_isdst = 0` を指定された場合、正の `tm_isdst` を戻して他のフィールドを適切に変更します。
 
+<a id="impl"></a>
 ### mktime の実装
 
 mktime の仕様はリンク先の "DESCRIPTION" をざっくりと要約したものです。夏時間の記述が多い訳は `tm_isdst` に関する処理が分かりづらいからで、最後の一文にいたっては "APPLICATION USAGE" にひっそりと書かれています。これは受け取った `tm_isdst` によって `tm` 構造体の時刻を調整すると読めます。

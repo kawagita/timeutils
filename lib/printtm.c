@@ -261,7 +261,11 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
   if (tm_ptrs->times)
     {
       if (iso8601)
-        fputc ('T', stdout);
+        {
+          if (!tm_ptrs->dates && out_num > 0)
+            fputc (' ', stdout);
+          fputc ('T', stdout);
+        }
       else if (out_num > 0)
         fputc (' ', stdout);
 
@@ -294,8 +298,12 @@ printtm (const struct tm_fmt *tm_fmt, const struct tm_ptrs *tm_ptrs)
 
       if (iso8601)
         {
-          if (out_num == 0)
-            fputc ('Z', stdout);
+          if (!tm_ptrs->dates && !tm_ptrs->times)
+            {
+              if (out_num > 0)
+                fputc (' ', stdout);
+              fputc ('Z', stdout);
+            }
         }
       else if (out_num > 0)
         fputc (' ', stdout);

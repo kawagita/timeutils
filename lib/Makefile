@@ -30,6 +30,16 @@ MODIFYSEC_OBJS=argempty.o argnumimax.o argnumint.o argseconds.o currentft.o \
                error.o imaxoverflow.o intoverflow.o printelapse.o \
                printusage.o secoverflow.o
 
+PARSEFT_OBJS=currentft.o ft2sec.o imaxoverflow.o intoverflow.o localtime.o \
+             printelapse.o printisdst.o printreltm.o printtm.o printusage.o \
+             sec2ft.o secoverflow.o yeardays.o
+
+SETFT_OBJS=argempty.o argisdst.o argmatch.o argnumimax.o argnumint.o \
+           argreltm.o argtmiso8601.o argweekday.o currentft.o errft.o \
+           ft2sec.o ft2val.o getft.o localtime.o imaxoverflow.o intoverflow.o \
+           mktime.o modifysec.o printelapse.o printusage.o sec2ft.o \
+           secoverflow.o yeardays.o
+
 # Rules compiling for Windows 64-bits to use self-implemented functions
 %.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_SELFIMPL -o $@ -c $<
@@ -59,6 +69,12 @@ libmktime.a: $(MKTIME_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o secover
 	$(AR) rcs $@ $^
 
 libmodifysec.a: $(MODIFYSEC_OBJS)
+	$(AR) rcs $@ $^
+
+libparseft.a: $(PARSEFT_OBJS) adjustday.o adjusttm.o adjusttz.o leapdays.o encword.o weekday.o
+	$(AR) rcs $@ $^
+
+libsetft.a: $(SETFT_OBJS) adjustday.o adjusttm.o adjusttz.o error_free.o leapdays.o weekday.o
 	$(AR) rcs $@ $^
 
 # Rules compiling for Windows 32-bits to use self-implemented functions
@@ -92,6 +108,12 @@ libx86mktime.a: $(patsubst %.o,%_win32.o,$(MKTIME_OBJS)) adjustday_win32.o adjus
 libx86modifysec.a: $(patsubst %.o,%_win32.o,$(MODIFYSEC_OBJS))
 	$(AR) rcs $@ $^
 
+libx86parseft.a: $(patsubst %.o,%_win32.o,$(PARSEFT_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o leapdays_win32.o encword_win32.o weekday_win32.o
+	$(AR) rcs $@ $^
+
+libx86setft.a: $(patsubst %.o,%_win32.o,$(SETFT_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o error_free_win32.o leapdays_win32.o weekday_win32.o
+	$(AR) rcs $@ $^
+
 # Rules compiling for GNU/Linux to use POSIX functions in GNU C Library
 %_glibc.o : %.c
 	$(GCC) $(GFLAGS) -DUSE_TM_GLIBC -o $@ -c $<
@@ -120,6 +142,12 @@ libgnumktime.a: $(patsubst %.o,%_glibc.o,$(MKTIME_OBJS))
 libgnumodifysec.a: $(patsubst %.o,%_glibc.o,$(MODIFYSEC_OBJS))
 	$(AR) rcs $@ $^
 
+libgnuparseft.a: $(patsubst %.o,%_glibc.o,$(PARSEFT_OBJS))
+	$(AR) rcs $@ $^
+
+libgnusetft.a: $(patsubst %.o,%_glibc.o,$(SETFT_OBJS)) error_glibc.o fd-reopen_glibc.o fdutimensat_glibc.o
+	$(AR) rcs $@ $^
+
 # Rules compiling for Windows 64-bits to use POSIX functions in MS Visual
 # C++ Runtime Library
 %_msvcrt.o : %.c
@@ -132,6 +160,12 @@ libmslocaltime.a: $(patsubst %.o,%_msvcrt.o,$(LOCALTIME_OBJS)) tmdiff_msvcrt.o
 	$(AR) rcs $@ $^
 
 libmsmktime.a: $(patsubst %.o,%_msvcrt.o,$(MKTIME_OBJS)) tmdiff_msvcrt.o
+	$(AR) rcs $@ $^
+
+libmsparseft.a: $(patsubst %.o,%_msvcrt.o,$(PARSEFT_OBJS)) encword.o tmdiff.o
+	$(AR) rcs $@ $^
+
+libmssetft.a: $(patsubst %.o,%_msvcrt.o,$(SETFT_OBJS)) error_free.o tmdiff.o
 	$(AR) rcs $@ $^
 
 clean:

@@ -5,7 +5,7 @@ GNU touch コマンドを MinGW でビルドして Windows で動くようにす
 
 Windows のコマンドをビルドする場合、Mingw-w64 と GNU make が必要です。64 ビットは `make`、32 ビットは `make x86` を実行すると、bin、x86 ディレクトリにそれぞれ作成されます。GNU C ライブラリ（GLIBC）や msvcrt.dll（MSVCRT）を使用したコマンドをビルドするには `make glibc`、`make msvcrt` を実行し、glibc、msvcrt ディレクトリに作成します。GLIBC のコマンドは gcc、make をインストールした GNU/Linux や Cygwin 上でビルドする必要があります。
 
-2025-W49 現在、関数のテスト用に作成した下記のコマンドが使えます。localtime と mktime は同名の POSIX 関数を自作したコマンドが bin、x86 ディレクトリに、GLIBC や MSVCRT の関数を呼び出すコマンドが glibc、msvcrt に作成され、同じ引数を指定して各ライブラリとの動作の違いを確かめられます。
+2025-W50 現在、関数のテスト用に作成した下記のコマンドが使えます。localtime と mktime は同名の POSIX 関数を自作したコマンドが bin、x86 ディレクトリに、GLIBC や MSVCRT の関数を呼び出すコマンドが glibc、msvcrt に作成され、同じ引数を指定して各ライブラリとの動作の違いを確かめられます。
 
 #### adjustday
 
@@ -29,11 +29,19 @@ Windows のコマンドをビルドする場合、Mingw-w64 と GNU make が必�
 
 #### mktime
 
-[mktime コマンド](./mktime.md) を参照。
+[mktime](./mktime.md) を参照。
 
 #### modifysec
 
 コマンドの引数に指定した 1970-01-01 00:00 UTC からの秒や小数部分のナノ秒を変更した値を表示します。`-C` や `-F` オプションを指定すると、（小数部分をゼロに設定して）秒の値を切り上げたり、切り下げたりします。また、`-R` や `-P` オプションを指定すると、小数部分をランダムな値に設定したり、 桁を並べ替えたりします。MSVCRT のコマンドは作成されません。
+
+#### parseft
+
+[parseft / setft](./parseft_setft.md) を参照。
+
+#### setft
+
+[parseft / setft](./parseft_setft.md) を参照。
 
 日付や時刻を表示するコマンドでは曜日名、週番号、年内日数、UTC からのオフセット、夏時間かどうかを表示したり、元号、ISO 8601 の形式で表示したりすることができます。詳しくは各コマンドに `--help` を指定して使用方法を参照してください。
 
@@ -41,4 +49,4 @@ Windows のコマンドをビルドする場合、Mingw-w64 と GNU make が必�
 
 ## ライセンス
 
-このプログラムは GPL v2.0 で公開されています。
+parseft、setft は GPL v3.0、それ以外のプログラムは GPL v2.0 で公開されています。

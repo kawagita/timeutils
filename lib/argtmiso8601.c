@@ -53,7 +53,7 @@ argtmiso8601 (const char *arg, struct tm_ptrs *tm_ptrs, char **endptr)
   int ns = -1;
 
   /* Input the year, month, and day. */
-  if (tm_ptrs->dates && *p != 'Z')
+  if (tm_ptrs->dates && *p != 'T' && *p != 'Z')
     {
       for (i = 0; i < 3; i++)
         {

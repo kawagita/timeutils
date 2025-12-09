@@ -19,9 +19,15 @@
 /* The definition of error files  */
 
 #ifdef USE_TM_GLIBC
-# define ERRFILE_NOT_FOUND(errnum) (errnum == ENOENT)
+# define ERRFILE_NOT_FOUND(errnum)        ((errnum) == ENOENT)
+# define ERRFILE_NOT_WRITTEN(errnum,file) \
+           ! ((errnum) == EISDIR || ((errnum) == EINVAL && ((file)->isdir)))
 #else
-# define ERRFILE_NOT_FOUND(errnum) (errnum == ERROR_FILE_NOT_FOUND)
+# define ERRFILE_NOT_FOUND(errnum)        ((errnum) == ERROR_FILE_NOT_FOUND)
+# define ERRFILE_NOT_WRITTEN(errnum,file) \
+           ((errnum) == ERROR_ACCESS_DENIED \
+            || (errnum) == ERROR_SHARING_VIOLATION \
+            || (errnum) == ERROR_LOCK_VIOLATION)
 #endif
 
 /* Print a message for the specified file, leading characters in the array
