@@ -471,7 +471,7 @@ main (int argc, char **argv)
 
         case 'd':
           if (! parseft (&ft_parsing, optarg))
-            error (EXIT_FAILURE, 0, _("invalid date format '%s'\n"), optarg);
+            error (EXIT_FAILURE, 0, _("invalid date format '%s'"), optarg);
           else if (ft_parsing.timespec_seen)
             newtime[0] = ft_parsing.timespec.ft;
           else
@@ -507,10 +507,11 @@ main (int argc, char **argv)
 
         case NS_RANDOM_OPTION:	/* --ns-random */
           set_num = argnumuint (optarg, &seed, &endptr);
-          if (set_num < 0)
-            error (EXIT_FAILURE, 0, _("invalid seed value '%s'"), optarg);
-          else if (set_num == 0 || ! argempty (endptr))
-            usage (EXIT_FAILURE);
+          if (set_num <= 0 || ! argempty (endptr))
+            {
+              error (0, 0, _("invalid seed value '%s'"), optarg);
+              usage (EXIT_FAILURE);
+            }
           ft_chgp = &ft_parsing.change;
           ft_chgp->modflag |= FT_NSEC_RANDOM;
           break;
@@ -554,15 +555,17 @@ main (int argc, char **argv)
 #endif
 
         case TIME_OPTION:	/* --time */
-          int change_time;
-          if (! argmatch (optarg, time_args, 0, &change_time, &endptr)
-              || ! argempty (endptr))
-            {
-              error (0, 0, _("invalid argument '%s' for '--time'"), optarg);
-              argmatch_valid (time_args);
-              usage (EXIT_FAILURE);
-            }
-          change_times |= change_time;
+          {
+            int change_time;
+            if (! argmatch (optarg, time_args, 0, &change_time, &endptr)
+                || ! argempty (endptr))
+              {
+                error (0, 0, _("invalid argument '%s' for '--time'"), optarg);
+                argmatch_valid (time_args);
+                usage (EXIT_FAILURE);
+              }
+            change_times |= change_time;
+          }
           break;
 
         case HELP_OPTION:	/* --help */
@@ -676,7 +679,6 @@ main (int argc, char **argv)
   for (; optind < argc; ++optind)
     {
       struct file ft_file;
-
 #ifdef USE_TM_GLIBC
       INIT_FILE (ft_file, argv[optind], no_dereference);
 #else

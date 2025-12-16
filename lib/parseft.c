@@ -2509,39 +2509,39 @@ populate_local_time_zone_table (parser_control *pc, TM const *lct)
   if (size)
     {
 #ifndef USE_TM_GLIBC
+      int i;
+
       /* Remove the trailing characters enclosed in two parenthesis from
          the time zone name.  */
-      if (tz_abbr[size - 1] == ')')
+      unsigned char *p = tz_abbr + size - 1;
+      if (*p == ')')
         {
-          char *p = tz_abbr + size - 1;
-          while (--p >= tz_abbr)
+          for (i = size - 1; i >= 0; i--)
             {
               if (*p == '(')
                 {
-                  if (p > tz_abbr && isspace (*(p - 1)))
+                  if (i > 0 && isspace (*(p - 1)))
                     p--;
                   *p = '\0';
                   break;
                 }
+              p--;
             }
         }
 
       /* Remove white-space characters from the time zone name.  */
-      char *p = tz_abbr;
-      do
+      bool moved = false;
+      p = tz_abbr;
+      while (*p != '\0')
         {
-          size--;
-          if (isspace (*p))
-            {
-              int i;
-              for (i = 0; i < size; i++)
-                p[i] = p[i + 1];
-              p[i] = '\0';
-            }
-          else
-            p++;
+          if (moved)
+            *(p - 1) = *p;
+          else if (isspace (*p))
+            moved = true;
+          p++;
         }
-      while (size >= 0);
+      if (moved)
+        *(p - 1) = '\0';
 #endif
 
       zone = pc->tz_abbr[first_entry_exists];
