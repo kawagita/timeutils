@@ -171,49 +171,6 @@ typedef struct
 #endif
 } parser_control;
 
-/* Extract into *PC any date and time info from a string of digits
-   of the form e.g., YYYYMMDD, YYMMDD, HHMM, HH (and sometimes YYY,
-   YYYY, ...).  */
-static void
-digits_to_date_time (parser_control *pc, textint text_int)
-{
-  if (pc->dates_seen && ! pc->year.digits
-      && ! pc->rels_seen && (pc->times_seen || 2 < text_int.digits))
-    {
-      pc->year_seen = true;
-      pc->year = text_int;
-    }
-  else
-    {
-      if (4 < text_int.digits)
-        {
-          pc->dates_seen++;
-          pc->day = text_int.value % 100;
-          pc->month = (text_int.value / 100) % 100;
-          pc->year.value = text_int.value / 10000;
-          pc->year.digits = text_int.digits - 4;
-          pc->year_seen = true;
-        }
-      else
-        {
-          pc->times_seen++;
-          if (text_int.digits <= 2)
-            {
-              pc->hour = text_int.value;
-              pc->minutes = 0;
-            }
-          else
-            {
-              pc->hour = text_int.value / 100;
-              pc->minutes = text_int.value % 100;
-            }
-          pc->seconds = 0;
-          pc->nsec = 0;
-          pc->meridian = MER24;
-        }
-    }
-}
-
 /* Increment PC->rel by FACTOR * REL (FACTOR is 1 or -1).  Return true
    if successful, false if an overflow occurred.  */
 static bool
@@ -288,7 +245,6 @@ union YYSTYPE
   relative_time rel;
 };
 typedef union YYSTYPE YYSTYPE;
-
 
 static table const meridian_table[] =
 {
@@ -752,13 +708,19 @@ yylex (YYSTYPE *lvalp, parser_control *pc)
 
           if (isalpha (c))
             {
-              *p++ = c;
-              if (! isalpha (*++pc->input))
+              do
+                {
+                  *p++ = c;
+                  c = *++pc->input;
+                  maxsize--;
+                }
+              while (isalpha (c) || c == '.');
+
+              if (isspace (c) || ispunct(c) || ISDIGIT (c))
                 {
                   *p = '\0';
                   alpha_input = true;
                 }
-              maxsize--;
             }
 
           if (! alpha_input)
@@ -816,7 +778,7 @@ static bool parsing_output = false;
 
 static char const *parsing_states[] = { "Start", "Accept", "Abort", "Stop" };
 
-/* Output the specified state of parsing an expression. */
+/* Output the specified state of parsing an expression.  */
 static inline int
 print_parsing_state (int state, int nest, char const *symbol, char const *expr)
 {
@@ -861,7 +823,7 @@ static char const *number_names[] =
   "tUDECIMAL_NUMBER"
 };
 
-/* Output the specified state of parsing a relunit. */
+/* Output the specified state of parsing a relunit.  */
 static const int
 print_parsing_relunit_state (int state, char const *symbol,
                              int num_token, int relunit_token)
@@ -875,7 +837,7 @@ print_parsing_relunit_state (int state, char const *symbol,
   return 1;
 }
 
-/* Output the state of parsing an expression. */
+/* Output the state of parsing an expression.  */
 # define PARSING_EXPR(state,symbol,expr) \
            (parsing_output ? print_parsing_state (state, 0, symbol, expr) : 0)
 # define PARSING_RELUNIT(state,symbol,num_token,relunit_token) \
@@ -2185,6 +2147,57 @@ parse_rel (YYSTYPE *lvalp, parser_control *pc)
   return STATE_STOP;
 }
 
+/* Extract into *PC any date and time info from a string of digits
+   of the form e.g., YYYYMMDD, YYMMDD, HHMM, HH (and sometimes YYY,
+   YYYY, ...).  */
+static void
+digits_to_date_time (parser_control *pc, textint text_int)
+{
+  if (pc->dates_seen && ! pc->year.digits
+      && ! pc->rels_seen && (pc->times_seen || 2 < text_int.digits))
+    {
+      pc->year_seen = true;
+      pc->year = text_int;
+
+      PARSING_ACCEPT ("number", "\"YYYY\"");
+    }
+  else
+    {
+      if (4 < text_int.digits)
+        {
+          pc->dates_seen++;
+          pc->day = text_int.value % 100;
+          pc->month = (text_int.value / 100) % 100;
+          pc->year.value = text_int.value / 10000;
+          pc->year.digits = text_int.digits - 4;
+          pc->year_seen = true;
+
+          PARSING_ACCEPT ("number", "\"YYYYMMDD\"");
+        }
+      else
+        {
+          pc->times_seen++;
+          if (text_int.digits <= 2)
+            {
+              pc->hour = text_int.value;
+              pc->minutes = 0;
+
+              PARSING_ACCEPT ("number", "\"HH\"");
+            }
+          else
+            {
+              pc->hour = text_int.value / 100;
+              pc->minutes = text_int.value % 100;
+
+              PARSING_ACCEPT ("number", "\"HHMM\"");
+            }
+          pc->seconds = 0;
+          pc->nsec = 0;
+          pc->meridian = MER24;
+        }
+    }
+}
+
 /* Parse the leading string as number.
 
    number := tUNUMBER
@@ -2355,6 +2368,10 @@ parse_item (YYSTYPE *lvalp, parser_control *pc)
 }
 
 #ifdef TEST
+/* The count of nesting items.  */
+static unsigned int nesting_items = 0;
+
+/* Output the state of parsing an expression in the nest of items.  */
 # define PARSING_ITEMS(state,nest,symbol,expr) \
            (parsing_output \
             ? print_parsing_state (state, nest, symbol, expr) : 0)
@@ -2364,8 +2381,6 @@ parse_item (YYSTYPE *lvalp, parser_control *pc)
            PARSING_ITEMS (STATE_ACCEPT, nest, symbol, expr)
 # define PARSING_STOP_ITEMS(nest,symbol) \
            PARSING_ITEMS (STATE_STOP, nest, symbol, NULL)
-
-static unsigned int items_nest = 0;
 #else
 # define PARSING_START_ITEMS(nest,symbol,expr)
 # define PARSING_ACCEPT_ITEMS(nest,symbol,expr)
@@ -2385,12 +2400,12 @@ parse_items (YYSTYPE *lvalp, parser_control *pc)
   char const *p0 = pc->input;
   YYSTYPE val0 = *lvalp;
 
-  PARSING_START_ITEMS (++items_nest, "items", p0);
+  PARSING_START_ITEMS (++nesting_items, "items", p0);
 
   int token = yylex (lvalp, pc);
   if (token == '\0')  /* empty */
     {
-      PARSING_ACCEPT_ITEMS (items_nest--, "items", "empty");
+      PARSING_ACCEPT_ITEMS (nesting_items--, "items", "empty");
       return STATE_ACCEPT;
     }
 
@@ -2404,7 +2419,7 @@ parse_items (YYSTYPE *lvalp, parser_control *pc)
       state = parse_items (lvalp, pc);
       if (state == STATE_ACCEPT)  /* item items */
         {
-          PARSING_ACCEPT_ITEMS (items_nest--, "items", "item items");
+          PARSING_ACCEPT_ITEMS (nesting_items--, "items", "item items");
           return STATE_ACCEPT;
         }
       else if (state == STATE_STOP)
@@ -2413,7 +2428,7 @@ parse_items (YYSTYPE *lvalp, parser_control *pc)
       return STATE_ABORT;
     }
 
-  PARSING_STOP_ITEMS (items_nest--, "items");
+  PARSING_STOP_ITEMS (nesting_items--, "items");
   return STATE_STOP;
 }
 
@@ -2542,7 +2557,10 @@ populate_local_time_zone_table (parser_control *pc, TM const *lct)
 bool
 parseft (FT_PARSING *result, char const *p)
 {
-  FT_CHANGE ft_chg;
+  FT_CHANGE ft_chg =
+    (FT_CHANGE) { .date_set = false, .year = -1, .hour = -1, .minutes = -1,
+                  .seconds = -1, .ns = -1, .day_number = -1, .tz_set = false,
+                  .lctz_isdst = -1, .modflag = result->change.modflag };
   FT now;
   if (! currentft (&now))
     return false;
@@ -2632,14 +2650,13 @@ parseft (FT_PARSING *result, char const *p)
     }
 
 #ifndef USE_TM_GLIBC
-  int ansi_cp = 0;
+  pc.ansi_cp = 0;
+
   char buff[6] = { '\0' };
 
   if (GetLocaleInfo (LOCALE_SYSTEM_DEFAULT,
         LOCALE_IDEFAULTANSICODEPAGE, (LPTSTR)buff, 6) > 0)
-    ansi_cp = atoi (buff);
-
-  pc.ansi_cp = ansi_cp;
+    pc.ansi_cp = atoi (buff);
 #endif
 
   if (! parse (&pc))
@@ -2654,10 +2671,6 @@ parseft (FT_PARSING *result, char const *p)
           || pc.rel.day < INT_MIN || pc.rel.day > INT_MAX)
         return false;
 
-      int year = -1;
-      int month = 0;
-      int day = 0;
-
       if (pc.dates_seen)
         {
           if (pc.year_seen)
@@ -2665,40 +2678,28 @@ parseft (FT_PARSING *result, char const *p)
               int tm_year;
               if (! to_tm_year (pc.year, &tm_year))
                 return false;
-
-              year = tm_year + TM_YEAR_BASE;
+              ft_chg.year = tm_year + TM_YEAR_BASE;
             }
 
           int tm_mon;
           if (pc.month < INT_MIN || pc.month > INT_MAX
               || pc.day < INT_MIN || pc.day > INT_MAX
               || INT_ADD_WRAPV (pc.month, -1, &tm_mon)
-              || INT_ADD_WRAPV (pc.day, 0, &day))
+              || INT_ADD_WRAPV (pc.day, 0, &ft_chg.day))
             return false;
-
-          month = tm_mon + 1;
+          ft_chg.month = tm_mon + 1;
+          ft_chg.date_set = true;
         }
-
       if (pc.times_seen)
         {
           int hour = to_hour (pc.hour, pc.meridian);
           if (hour < 0)
             return false;
-
           ft_chg.hour = hour;
           ft_chg.minutes = pc.minutes;
           ft_chg.seconds = pc.seconds;
           ft_chg.ns = pc.nsec;
         }
-      else
-        ft_chg.hour = ft_chg.minutes = ft_chg.seconds = ft_chg.ns = -1;
-
-      ft_chg.date_set = pc.dates_seen;
-      ft_chg.year = year;
-      ft_chg.month = month;
-      ft_chg.day = day;
-      ft_chg.day_number = ft_chg.lctz_isdst = -1;
-      ft_chg.day_ordinal = 0;
 
       if (pc.days_seen && ! pc.dates_seen)
         {
@@ -2744,7 +2745,7 @@ usage (int status)
   printusage ("parseft", " STRING\n\
 Parse STRING as the representation of date and time into parameters\n\
 by which file time is changed. Display those values if parsing is\n\
-completed, otherwise, nothing.\n\
+completed and parameters are not duplicate, otherwise, nothing.\n\
 \n\
 Options:\n\
   -p   output the state of each parsing instead of values.\
@@ -2786,7 +2787,6 @@ main (int argc, char **argv)
     {
       intmax_t seconds;
       int nsec;
-
       ft2sec (&result.timespec.ft, &seconds, &nsec);
 
       printelapse (false, seconds, nsec);

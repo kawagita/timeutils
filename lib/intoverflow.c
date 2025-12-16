@@ -1,4 +1,4 @@
-/* Check whether the calculation of integer overflows by two parameters
+/* Check whether integer value overflows by the calculation
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -18,9 +18,9 @@
 #include <limits.h>
 #include <stdbool.h>
 
-/* Check whether the addition of the specified A and B overflows the range
-   of integer. Return false and set its result into *P if not overflowed,
-   otherwise, return true.  */
+/* Check whether the result value overflows from the range of integer
+   by the addition of the specified A and B. Return false and set its
+   value into *P if don't overflow, otherwise, return true.  */
 
 bool
 int_add_overflow (int a, int b, int *p)
@@ -31,9 +31,9 @@ int_add_overflow (int a, int b, int *p)
   return false;
 }
 
-/* Check whether the subtraction of the specified A and B overflows
-   the range of integer. Return false and set its result into *P if not
-   overflowed, otherwise, return true.  */
+/* Check whether the result value overflows from the range of integer
+   by the subtraction of the specified A and B. Return false and set its
+   value into *P if don't overflow, otherwise, return true.  */
 
 bool
 int_sub_overflow (int a, int b, int *p)
@@ -44,9 +44,9 @@ int_sub_overflow (int a, int b, int *p)
   return false;
 }
 
-/* Check whether the multiplication of the specified A and B overflows
-   the range of integer. Return false and set its result into *P if not
-   overflowed, otherwise, return true.  */
+/* Check whether the result value overflows from the range of integer
+   by the multiplication of the specified A and B. Return false and set
+   its value into *P if don't overflow, otherwise, return true.  */
 
 bool
 int_mul_overflow (int a, int b, int *p)

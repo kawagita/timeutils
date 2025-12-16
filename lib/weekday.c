@@ -1,4 +1,4 @@
-/* Get the week day in a year
+/* Get the week day number in a year
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify

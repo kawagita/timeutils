@@ -70,6 +70,7 @@ adjusttz (struct lctm *tm, int trans_isdst)
   TIME_ZONE_INFORMATION tzinfo;
   int year;
   int min = tm->tm_min;
+  int isdst = tm->tm_isdst;
   intmax_t offset = 0;
   bool dst_effect = false;
 
@@ -87,7 +88,6 @@ adjusttz (struct lctm *tm, int trans_isdst)
     {
       bool has_noleapday = HAS_NOLEAPDAY (year);
       int st_trans, dst_trans;
-      int isdst = tm->tm_isdst;
       intmax_t adj_min = 0;
 
       if (tzinfo.DaylightDate.wYear > 0)  /* Only occur one time */
@@ -177,6 +177,8 @@ adjusttz (struct lctm *tm, int trans_isdst)
           || INT_ADD_WRAPV (min, adj_min, &min))
         return false;
     }
+  else if (isdst > 0 && trans_isdst > 0 && INT_SUBTRACT_WRAPV (min, 60, &min))
+    return false;
 
   /* Set the tm_gmtoff member to - (tzinfo.Bias + (ST or DT Bias)) * 60. */
   if (IMAX_SUBTRACT_WRAPV (offset, tzinfo.Bias, &offset)

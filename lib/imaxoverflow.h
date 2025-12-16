@@ -21,20 +21,20 @@
 #define IMAX_SUBTRACT_WRAPV(a,b,p) imax_sub_overflow (a, b, p)
 #define IMAX_MULTIPLY_WRAPV(a,b,p) imax_mul_overflow (a, b, p)
 
-/* Check whether the addition of the specified A and B overflows the range
-   of intmax_t. Return false and set its result into *P if not overflowed,
-   otherwise, return true.  */
+/* Check whether the result value overflows from the range of intmax_t
+   by the addition of the specified A and B. Return false and set its
+   value into *P if don't overflow, otherwise, return true.  */
 
 bool imax_add_overflow (intmax_t a, intmax_t b, intmax_t *p);
 
-/* Check whether the subtraction of the specified A and B overflows
-   the range of intmax_t. Return false and set its result into *P if not
-   overflowed, otherwise, return true.  */
+/* Check whether the result value overflows from the range of intmax_t
+   by the subtraction of the specified A and B. Return false and set its
+   value into *P if don't overflow, otherwise, return true.  */
 
 bool imax_sub_overflow (intmax_t a, intmax_t b, intmax_t *p);
 
-/* Check whether the multiplication of the specified A and B overflows
-   the range of intmax_t. Return false and set its result into *P if not
-   overflowed, otherwise, return true.  */
+/* Check whether the result value overflows from the range of intmax_t
+   by the multiplication of the specified A and B. Return false and set
+   its value into *P if don't overflow, otherwise, return true.  */
 
 bool imax_mul_overflow (intmax_t a, intmax_t b, intmax_t *p);

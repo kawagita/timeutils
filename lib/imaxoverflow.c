@@ -1,4 +1,4 @@
-/* Check whether the calculation of intmax_t overflows by two parameters
+/* Check whether intmax_t value overflows by the calculation
    Copyright (C) 2025 Yoshinori Kawagita.
 
    This program is free software; you can redistribute it and/or modify
@@ -18,9 +18,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Check whether the addition of the specified A and B overflows the range
-   of intmax_t. Return false and set its result into *P if not overflowed,
-   otherwise, return true.  */
+/* Check whether the result value overflows from the range of intmax_t
+   by the addition of the specified A and B. Return false and set its
+   value into *P if don't overflow, otherwise, return true.  */
 
 bool
 imax_add_overflow (intmax_t a, intmax_t b, intmax_t *p)
@@ -31,9 +31,9 @@ imax_add_overflow (intmax_t a, intmax_t b, intmax_t *p)
   return false;
 }
 
-/* Check whether the subtraction of the specified A and B overflows
-   the range of intmax_t. Return false and set its result into *P if not
-   overflowed, otherwise, return true.  */
+/* Check whether the result value overflows from the range of intmax_t
+   by the subtraction of the specified A and B. Return false and set its
+   value into *P if don't overflow, otherwise, return true.  */
 
 bool
 imax_sub_overflow (intmax_t a, intmax_t b, intmax_t *p)
@@ -44,9 +44,9 @@ imax_sub_overflow (intmax_t a, intmax_t b, intmax_t *p)
   return false;
 }
 
-/* Check whether the multiplication of the specified A and B overflows
-   the range of intmax_t. Return false and set its result into *P if not
-   overflowed, otherwise, return true.  */
+/* Check whether the result value overflows from the range of intmax_t
+   by the multiplication of the specified A and B. Return false and set
+   its value into *P if don't overflow, otherwise, return true.  */
 
 bool
 imax_mul_overflow (intmax_t a, intmax_t b, intmax_t *p)

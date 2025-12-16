@@ -1,5 +1,6 @@
-/* Get the number of days in a year
-   Copyright (C) 2025 Yoshinori Kawagita.
+/* Parse dates for touch and date.
+
+   Copyright (C) 1998, 2003, 2005 Free Software Foundation Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,30 +16,19 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-#include <stdbool.h>
+/* Yacc-based version written by Jim Kingdon and David MacKenzie.
+   Rewritten by Jim Meyering.  */
 
-#include "adjusttm.h"
+#ifndef POSIXTM_H_
+# define POSIXTM_H_
 
-/* Days for months since January in a year  */
+/* POSIX Date Syntax flags.  */
+# define PDS_LEADING_YEAR 1
+# define PDS_TRAILING_YEAR 2
+# define PDS_CENTURY 4
+# define PDS_SECONDS 8
+# define PDS_PRE_2000 16
 
-static const int ydays[] =
-{
-  0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, DAYS_IN_YEAR
-};
+bool posixtime (intmax_t *p, const char *s, unsigned int syntax_bits);
 
-/* Return the number of days for the specified months since January in
-   a year if its value is from 0 to 12, otherwise, -1.  */
-
-int
-yeardays (bool has_noleapday, int months)
-{
-  if (months >= 0 && months <= 12)
-    {
-      if (has_noleapday || months < 2)
-        return ydays[months];
-
-      return ydays[months] + 1;
-    }
-
-  return -1;
-}
+#endif

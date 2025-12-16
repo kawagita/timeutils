@@ -4,6 +4,10 @@ CFLAGS=-std=c11 -O2 -Wformat -Werror
 GCC=gcc
 GFLAGS=-std=gnu11 -O2 -Wformat -Werror
 
+TOUCH_OBJS=argempty.o argmatch.o argnumint.o currentft.o errft.o ft2sec.o \
+           getft.o imaxoverflow.o intoverflow.o localtime.o mktime.o \
+           modifysec.o parseft.o posixtm.o sec2ft.o secoverflow.o setft.o
+
 ADJUSTDAY_OBJS=adjusttm.o argempty.o argnumimax.o argnumint.o argreltm.o \
                error.o imaxoverflow.o intoverflow.o leapdays.o printtm.o \
                printusage.o weekday.o yeardays.o
@@ -41,6 +45,7 @@ SETFT_OBJS=argempty.o argisdst.o argmatch.o argnumimax.o argnumint.o \
            secoverflow.o yeardays.o
 
 # Rules compiling for Windows 64-bits to use self-implemented functions
+
 %.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_SELFIMPL -o $@ -c $<
 
@@ -49,6 +54,9 @@ SETFT_OBJS=argempty.o argisdst.o argmatch.o argnumimax.o argnumint.o \
 
 error_free.o : error.c
 	$(CC) $(CFLAGS) -DUSE_TM_SELFIMPL -DFREE_WARGV -o $@ -c $<
+
+libtouch.a: $(TOUCH_OBJS) adjustday.o adjusttm.o adjusttz.o encword.o error_free.o leapdays.o weekday.o yeardays.o
+	$(AR) rcs $@ $^
 
 libadjustday.a: $(ADJUSTDAY_OBJS)
 	$(AR) rcs $@ $^
@@ -78,6 +86,7 @@ libsetft.a: $(SETFT_OBJS) adjustday.o adjusttm.o adjusttz.o error_free.o leapday
 	$(AR) rcs $@ $^
 
 # Rules compiling for Windows 32-bits to use self-implemented functions
+
 %_win32.o : %.c
 	$(CC_X86) $(CFLAGS) -DUSE_TM_SELFIMPL -o $@ -c $<
 
@@ -86,6 +95,9 @@ libsetft.a: $(SETFT_OBJS) adjustday.o adjusttm.o adjusttz.o error_free.o leapday
 
 error_free_win32.o : error.c
 	$(CC_X86) $(CFLAGS) -DUSE_TM_SELFIMPL -DFREE_WARGV -o $@ -c $<
+
+libx86touch.a: $(patsubst %.o,%_win32.o,$(TOUCH_OBJS)) adjustday_win32.o adjusttm_win32.o adjusttz_win32.o encword_win32.o error_free_win32.o leapdays_win32.o weekday_win32.o yeardays_win32.o
+	$(AR) rcs $@ $^
 
 libx86adjustday.a: $(patsubst %.o,%_win32.o,$(ADJUSTDAY_OBJS))
 	$(AR) rcs $@ $^
@@ -115,11 +127,15 @@ libx86setft.a: $(patsubst %.o,%_win32.o,$(SETFT_OBJS)) adjustday_win32.o adjustt
 	$(AR) rcs $@ $^
 
 # Rules compiling for GNU/Linux to use POSIX functions in GNU C Library
+
 %_glibc.o : %.c
 	$(GCC) $(GFLAGS) -DUSE_TM_GLIBC -o $@ -c $<
 
 %_gnutest.o : %.c
 	$(GCC) $(GFLAGS) -DUSE_TM_GLIBC -DTEST -o $@ -c $<
+
+libgnutouch.a: $(patsubst %.o,%_glibc.o,$(TOUCH_OBJS)) error_glibc.o fd-reopen_glibc.o fdutimensat_glibc.o
+	$(AR) rcs $@ $^
 
 libgnuadjustday.a: $(patsubst %.o,%_glibc.o,$(ADJUSTDAY_OBJS))
 	$(AR) rcs $@ $^
@@ -150,16 +166,20 @@ libgnusetft.a: $(patsubst %.o,%_glibc.o,$(SETFT_OBJS)) error_glibc.o fd-reopen_g
 
 # Rules compiling for Windows 64-bits to use POSIX functions in MS Visual
 # C++ Runtime Library
+
 %_msvcrt.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_MSVCRT -o $@ -c $<
 
 %_mstest.o : %.c
 	$(CC) $(CFLAGS) -DUSE_TM_MSVCRT -DTEST -o $@ -c $<
 
-libmslocaltime.a: $(patsubst %.o,%_msvcrt.o,$(LOCALTIME_OBJS)) tmdiff_msvcrt.o
+libmstouch.a: $(patsubst %.o,%_msvcrt.o,$(TOUCH_OBJS)) error_free.o encword.o tmdiff.o yeardays.o
 	$(AR) rcs $@ $^
 
-libmsmktime.a: $(patsubst %.o,%_msvcrt.o,$(MKTIME_OBJS)) tmdiff_msvcrt.o
+libmslocaltime.a: $(patsubst %.o,%_msvcrt.o,$(LOCALTIME_OBJS)) tmdiff.o
+	$(AR) rcs $@ $^
+
+libmsmktime.a: $(patsubst %.o,%_msvcrt.o,$(MKTIME_OBJS)) tmdiff.o
 	$(AR) rcs $@ $^
 
 libmsparseft.a: $(patsubst %.o,%_msvcrt.o,$(PARSEFT_OBJS)) encword.o tmdiff.o

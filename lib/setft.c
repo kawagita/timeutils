@@ -416,7 +416,7 @@ Options:\n"
 
 /* Parse the specified arguments as the date, time, and UTC offset in
    ISO 8601 format and set those values into *FT_CHGP, storing the pointer
-   to a following character into *ENDPTR. Return 1 or 0 if set values or 
+   to a following character into *ENDPTR. Return 1 or 0 if set values or
    not, otherwise, -1 if a value is outside the range of its parameter.  */
 static int
 argdatetime (const char *argv, FT_CHANGE *ft_chgp, char **endptr)
@@ -681,7 +681,7 @@ main (int argc, char **argv)
         errfile (EXIT_FAILURE, open_errno,
                  "failed to get attributes of", &ft_file);
 
-        OPEN_FILE (&ft_file);
+        OPEN_FILE (&ft_file, true);
 
         if (IS_INVALID_FILE (&ft_file))
           errfile (EXIT_FAILURE, ERRNO (), "failed to open", &ft_file);
