@@ -289,7 +289,7 @@ bool
 setft (struct file *ft_file, const FT *ft_nowp[FT_SIZE],
        const FT_CHANGE *ft_chg)
 {
-  if (! IS_INVALID_FILE (ft_file))
+  if (! IS_INVALID_FILE (ft_file, false))
     {
       const FT *ftp[FT_SIZE];
       FT ft[FT_SIZE];
@@ -683,7 +683,7 @@ main (int argc, char **argv)
 
         OPEN_FILE (&ft_file, true);
 
-        if (IS_INVALID_FILE (&ft_file))
+        if (IS_INVALID_FILE (&ft_file, false))
           errfile (EXIT_FAILURE, ERRNO (), "failed to open", &ft_file);
 
       success = setft (&ft_file, ft_nowp, &ft_chg);

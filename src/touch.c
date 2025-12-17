@@ -172,7 +172,7 @@ touch (struct file *ft_file, const FT_CHANGE *ft_chg, bool date_set)
           /* Try to open FILE, creating it if necessary.  */
           OPEN_FILE (ft_file, no_create);
 
-          if (IS_INVALID_FILE (ft_file))
+          if (IS_INVALID_FILE (ft_file, true))
             open_errno = ERRNO ();
 #ifdef USE_TM_GLIBC
         }

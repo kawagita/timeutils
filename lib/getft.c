@@ -48,7 +48,8 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
       ft[FT_ATIME] = st.st_atim;
       ft[FT_MTIME] = st.st_mtim;
 
-      ft_file->isdir = S_ISDIR (st.st_mode);
+      if (S_ISDIR (st.st_mode))
+        ft_file->isdir = true;
 
       return true;
     }
@@ -61,7 +62,8 @@ getft (FT ft[FT_SIZE], struct file *ft_file)
       ft[FT_MTIME] = finfo.ftLastWriteTime;
       ft[FT_BTIME] = finfo.ftCreationTime;
 
-      ft_file->isdir = finfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0;
+      if (finfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        ft_file->isdir = true;
 
       return true;
     }

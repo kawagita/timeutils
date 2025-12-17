@@ -81,36 +81,36 @@ struct file
 /* The macro of functions for struct file  */
 
 #ifdef USE_TM_GLIBC
-# define IS_STDOUT_NAME(fname) (strcmp (fname, "-") == 0)
-# define IS_FILE_STDOUT(f)     IS_STDOUT_NAME ((f)->name)
-# define IS_INVALID_FILE(f)    ((f)->fd < 0)
+# define IS_STDOUT_NAME(fname)       (strcmp (fname, "-") == 0)
+# define IS_FILE_STDOUT(f)           IS_STDOUT_NAME ((f)->name)
+# define IS_INVALID_FILE(f,no_dir)   ((f)->fd < 0 && (no_dir || !(f)->isdir))
 
 # define INIT_FILE(f,fname,no_deref) \
-           f = IS_STDOUT_NAME (fname) \
-               ? (struct file) { .name = fname, .fd = STDOUT_FILENO, \
-                                 .no_dereference = true } \
-               : (struct file) { .name = fname, .fd = -1, \
-                                 .no_dereference = no_deref }
+    f = IS_STDOUT_NAME (fname) \
+        ? (struct file) { .name = fname, .fd = STDOUT_FILENO, \
+                          .no_dereference = true, .isdir = false } \
+        : (struct file) { .name = fname, .fd = -1, \
+                          .no_dereference = no_deref, .isdir = false }
 
 # define OPEN_FILE(f,no_create) \
-           if (! (f)->no_dereference) \
-             (f)->fd = fd_reopen (STDIN_FILENO, (f)->name, \
-                                  O_WRONLY | O_CREAT | O_NONBLOCK | O_NOCTTY, \
-                                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP \
-                                  | S_IROTH | S_IWOTH)
+    if (! (f)->no_dereference) \
+      (f)->fd = fd_reopen (STDIN_FILENO, (f)->name, \
+                           O_WRONLY | O_CREAT | O_NONBLOCK | O_NOCTTY, \
+                           S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH \
+                           | S_IWOTH)
 #else
-# define IS_FILE_STDOUT(f)     false
-# define IS_INVALID_FILE(f)    ((f)->hFile == INVALID_HANDLE_VALUE)
+# define IS_FILE_STDOUT(f)           false
+# define IS_INVALID_FILE(f,no_dir)   ((f)->hFile == INVALID_HANDLE_VALUE)
 
 # define INIT_FILE(f,fname,no_deref) \
-           f = (struct file) { .name = fname, .hFile = INVALID_HANDLE_VALUE }
+    f = (struct file) { .name = fname, .hFile = INVALID_HANDLE_VALUE, \
+                        .isdir = false }
 
 # define OPEN_FILE(f,no_create) \
-           (f)->hFile = CreateFile ((f)->name, GENERIC_READ | GENERIC_WRITE, \
-                                    0, NULL, \
-                                    no_create ? OPEN_EXISTING : OPEN_ALWAYS, \
-                                    (f)->isdir ? FILE_FLAG_BACKUP_SEMANTICS \
-                                               : 0, NULL)
+   (f)->hFile = CreateFile ((f)->name, GENERIC_WRITE, FILE_SHARE_READ, \
+                            NULL, no_create ? OPEN_EXISTING : OPEN_ALWAYS, \
+                            (f)->isdir ? FILE_FLAG_BACKUP_SEMANTICS \
+                                       : FILE_ATTRIBUTE_NORMAL, NULL)
 #endif
 
 /* Get file times for the specified struct file into FT and set the flag
